@@ -1,5 +1,8 @@
 .nopublish
 
+# LDIB: throwaway upscaled skin previews (the generator tools/gen_skins.py is tracked)
+/tools/preview/
+
 ### Windows ###
 
 thumbs.db

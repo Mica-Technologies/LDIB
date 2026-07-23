@@ -34,32 +34,35 @@ public class ModelScooter extends ModelRideable {
     private static final float THIN = -0.33F;
 
     public ModelScooter() {
-        this.textureWidth = 64;
-        this.textureHeight = 32;
+        this.textureWidth = ATLAS_W;
+        this.textureHeight = ATLAS_H;
+
+        // Per-material UV (see ModelRideable's atlas map): wheels = TYRE (black), stem/fork/lug =
+        // FRAME (stem colour), deck grip-tape + handlebar = ACCENT (secondary), fender = METAL (grey).
 
         // Small wheels (radius 3 = 6 px): front toward −z, rear toward +z, centred at model_y = +3 so
         // the bottom sits on the ground (+6). Thin 1 px tyres.
-        frontWheel = buildWheel(3.0F, -6.0F, 3, 1);
-        rearWheel = buildWheel(3.0F, 6.0F, 3, 1);
+        frontWheel = buildWheel(3.0F, -6.0F, 3, 1, TYRE_U, TYRE_V);
+        rearWheel = buildWheel(3.0F, 6.0F, 3, 1, TYRE_U, TYRE_V);
 
         // Low deck the rider stands on, from just behind the stem back toward the rear wheel.
-        deck = new ModelRenderer(this, 0, 0);
+        deck = new ModelRenderer(this, ACCENT_U, ACCENT_V);
         deck.addBox(-2.0F, 4.0F, -3.0F, 4, 1, 9);
         deck.setRotationPoint(0.0F, 0.0F, 0.0F);
 
         // Tall front stem up to the handlebars (slimmed ~33%), plus a short fork to the front wheel.
-        stem = tube(4.0F, -6.0F, -14.0F, -6.0F, 2, THIN);
-        fork = tube(4.0F, -6.0F, 3.0F, -6.0F, 2);
+        stem = tube(4.0F, -6.0F, -14.0F, -6.0F, 2, THIN, FRAME_U, FRAME_V);
+        fork = tube(4.0F, -6.0F, 3.0F, -6.0F, 2, FRAME_U, FRAME_V);
 
-        handlebar = new ModelRenderer(this, 0, 0);
+        handlebar = new ModelRenderer(this, ACCENT_U, ACCENT_V);
         handlebar.addBox(-5.0F, -1.0F, -1.0F, 10, 2, 2, THIN);
         handlebar.setRotationPoint(0.0F, -14.0F, -6.0F);
 
         // Bury the stem/fork base overlap so their faces don't fight.
-        stemLug = lug(4.0F, -6.0F, 3);
+        stemLug = lug(4.0F, -6.0F, 3, FRAME_U, FRAME_V);
 
         // Rear fender over the back wheel.
-        fender = new ModelRenderer(this, 0, 0);
+        fender = new ModelRenderer(this, METAL_U, METAL_V);
         fender.addBox(-2.0F, 0.0F, 4.0F, 4, 1, 4);
         fender.setRotationPoint(0.0F, 0.0F, 0.0F);
 

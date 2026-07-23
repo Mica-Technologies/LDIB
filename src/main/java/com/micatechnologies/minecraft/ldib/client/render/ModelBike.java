@@ -39,38 +39,41 @@ public class ModelBike extends ModelRideable {
     private final ModelRenderer brakeGlow;
 
     public ModelBike() {
-        this.textureWidth = 64;
-        this.textureHeight = 32;
+        this.textureWidth = ATLAS_W;
+        this.textureHeight = ATLAS_H;
+
+        // Per-material UV (see ModelRideable's atlas map): wheels = TYRE (near-black), frame tubes +
+        // lugs = FRAME (variant colour), saddle + handlebar grips = ACCENT (secondary colour).
 
         // Wheels (radius 7 = 14 px ≈ 0.875 block): front toward −z, rear toward +z. Thin 1 px tyres.
-        frontWheel = buildWheel(-1.0F, -7.0F, 7, 1);
-        rearWheel = buildWheel(-1.0F, 7.0F, 7, 1);
+        frontWheel = buildWheel(-1.0F, -7.0F, 7, 1, TYRE_U, TYRE_V);
+        rearWheel = buildWheel(-1.0F, 7.0F, 7, 1, TYRE_U, TYRE_V);
 
         // Frame nodes (model space, +y down, front −z):
         //   bottom bracket BB(+2, 0), head tube HT(−9, −6), seat top ST(−11, +5),
         //   front axle FA(−1, −7), rear axle RA(−1, +7).
-        downTube = tube(2.0F, 0.0F, -9.0F, -6.0F, 2);   // BB → head tube
-        seatTube = tube(2.0F, 0.0F, -11.0F, 5.0F, 2);   // BB → seat
-        topTube = tube(-9.0F, -6.0F, -11.0F, 5.0F, 2);  // head tube → seat
-        fork = tube(-9.0F, -6.0F, -1.0F, -7.0F, 2);     // head tube → front axle
-        chainStay = tube(2.0F, 0.0F, -1.0F, 7.0F, 2);   // BB → rear axle
-        seatStay = tube(-11.0F, 5.0F, -1.0F, 7.0F, 2);  // seat → rear axle
-        stem = tube(-9.0F, -6.0F, -12.0F, -6.0F, 2);    // head tube → handlebar
+        downTube = tube(2.0F, 0.0F, -9.0F, -6.0F, 2, FRAME_U, FRAME_V);   // BB → head tube
+        seatTube = tube(2.0F, 0.0F, -11.0F, 5.0F, 2, FRAME_U, FRAME_V);   // BB → seat
+        topTube = tube(-9.0F, -6.0F, -11.0F, 5.0F, 2, FRAME_U, FRAME_V);  // head tube → seat
+        fork = tube(-9.0F, -6.0F, -1.0F, -7.0F, 2, FRAME_U, FRAME_V);     // head tube → front axle
+        chainStay = tube(2.0F, 0.0F, -1.0F, 7.0F, 2, FRAME_U, FRAME_V);   // BB → rear axle
+        seatStay = tube(-11.0F, 5.0F, -1.0F, 7.0F, 2, FRAME_U, FRAME_V);  // seat → rear axle
+        stem = tube(-9.0F, -6.0F, -12.0F, -6.0F, 2, FRAME_U, FRAME_V);    // head tube → handlebar
 
-        handlebar = new ModelRenderer(this, 0, 0);
+        handlebar = new ModelRenderer(this, ACCENT_U, ACCENT_V);
         handlebar.addBox(-5.0F, -1.0F, -1.0F, 10, 2, 2);
         handlebar.setRotationPoint(0.0F, -12.0F, -6.0F);
 
         // Saddle: 4 px wide so it is not coplanar with the 3 px seat lug it sits over.
-        saddle = new ModelRenderer(this, 0, 0);
+        saddle = new ModelRenderer(this, ACCENT_U, ACCENT_V);
         saddle.addBox(-2.0F, -1.0F, -3.0F, 4, 1, 6);
         saddle.setRotationPoint(0.0F, -12.0F, 5.0F);
 
         // Joint lugs bury the overlapping tube ends at each convergence (see ModelRideable).
-        bbLug = lug(2.0F, 0.0F, 3);   // bottom bracket: down/seat/chain
-        htLug = lug(-9.0F, -6.0F, 3); // head tube: down/top/fork/stem
-        stLug = lug(-11.0F, 5.0F, 3); // seat cluster: seat/top/seat-stay
-        raLug = lug(-1.0F, 7.0F, 3);  // rear axle: chain + seat stays
+        bbLug = lug(2.0F, 0.0F, 3, FRAME_U, FRAME_V);   // bottom bracket: down/seat/chain
+        htLug = lug(-9.0F, -6.0F, 3, FRAME_U, FRAME_V); // head tube: down/top/fork/stem
+        stLug = lug(-11.0F, 5.0F, 3, FRAME_U, FRAME_V); // seat cluster: seat/top/seat-stay
+        raLug = lug(-1.0F, 7.0F, 3, FRAME_U, FRAME_V);  // rear axle: chain + seat stays
 
         // Lights = permanent grey housing (drawn in render) + emissive lens + additive glow (drawn in
         // renderLights). Headlight at the front (−z), brake at the rear (+z).
