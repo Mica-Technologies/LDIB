@@ -160,7 +160,7 @@ public class BlockBikeDock extends Block {
         // Dock is free.
         // Op setup: sneak-right-click a free dock with a bike item to stock the fleet with a NEW
         // public bike-share bike of that variant.
-        if (player.isSneaking() && held.getItem() instanceof ItemBike && player.canUseCommand(2, "")) {
+        if (player.isSneaking() && held.getItem() instanceof ItemBike && canStockFleet(world, player)) {
             dock.dock(((ItemBike) held.getItem()).variant());
             if (!player.capabilities.isCreativeMode) {
                 held.shrink(1);
@@ -276,6 +276,15 @@ public class BlockBikeDock extends Block {
     public boolean tryDockRidden(World world, BlockPos pos, EntityPlayer player) {
         return player.getRidingEntity() instanceof EntityBike
             && tryDockBike(world, pos, (EntityBike) player.getRidingEntity(), player);
+    }
+
+    /**
+     * Who may stock the share fleet by sneak-right-clicking a dock with a bike item: anyone in
+     * singleplayer (it has no ops), otherwise an operator (permission level 2) on a server.
+     */
+    private static boolean canStockFleet(World world, EntityPlayer player) {
+        net.minecraft.server.MinecraftServer server = world.getMinecraftServer();
+        return (server != null && server.isSinglePlayer()) || player.canUseCommand(2, "");
     }
 
     /** Spawn a checked-out bike in the block in front of the dock, pointing out along its facing. */
