@@ -83,11 +83,12 @@ public class ModelBike extends ModelRideable {
         saddle.addBox(-2.0F, -1.0F, -3.0F, 4, 1, 6);
         saddle.setRotationPoint(0.0F, -12.0F, 5.0F);
 
-        // Accessories. Battery: a 3 px pack straddling (burying) the 2 px down tube. Basket: a 5 px
-        // box sitting high at the front (y −14..−10), above the front wheel and clear of the front
-        // light housing — so a share e-bike carries both a battery and a basket without clipping.
+        // Accessories. Battery: a 3 px pack straddling (burying) the 2 px down tube. Basket: a 5x4x5
+        // box mounted on the front of the handlebar — it wraps the handlebar centre (y −14..−10 fully
+        // contains the y −13..−11 bar, so it reads as attached, not floating) and extends forward to
+        // z −11, staying above the front wheel and clear of the headlight housing (y −9..−6 below it).
         battery = hasBattery ? box(-1.5F, -6.0F, -4.0F, 3, 5, 3, METAL_U, METAL_V) : null;
-        basket = hasBasket ? box(-2.5F, -14.0F, -12.0F, 5, 4, 4, METAL_U, METAL_V) : null;
+        basket = hasBasket ? box(-2.5F, -14.0F, -11.0F, 5, 4, 5, METAL_U, METAL_V) : null;
 
         // Joint lugs bury the overlapping tube ends at each convergence (see ModelRideable).
         bbLug = lug(2.0F, 0.0F, 3, FRAME_U, FRAME_V);   // bottom bracket: down/seat/chain
