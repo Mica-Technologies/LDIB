@@ -92,20 +92,69 @@ public class EntityBike extends Entity {
 
     @Override
     public boolean processInitialInteract(EntityPlayer player, EnumHand hand) {
-        // Sneak-right-click picks the bike back up into item form — the only way to reclaim a bike
-        // once it has been placed in the world. Needed so a bike that was placed and ridden can be
-        // put back in a rack, handed off, or stored. Only if nobody is currently riding it.
+        if (this.world.isRemote) {
+            return true;
+        }
+        // Sneak-right-click pockets the bike as an item — even the one you're riding: hop off first,
+        // then pick it up, so it's one gesture to put your bike away.
         if (player.isSneaking()) {
-            if (!this.world.isRemote && !this.isBeingRidden()) {
+            if (this.isPassenger(player)) {
+                this.removePassengers();
+            }
+            if (!this.isBeingRidden()) {
                 giveAsItem(player);
                 this.setDead();
             }
             return true;
         }
-        if (!this.world.isRemote && !this.isBeingRidden()) {
+        // If you're riding and the click landed on your own bike while you were looking at a rack or
+        // dock, park there — so "ride up and right-click" works whether the ray hit the block or the
+        // bike (right-clicking the rack/dock block itself is handled by the block too).
+        if (this.isPassenger(player)) {
+            tryParkAtLookedAt(player);
+            return true;
+        }
+        if (!this.isBeingRidden()) {
             player.startRiding(this);
         }
         return true;
+    }
+
+    /** Attacking a parked bike pockets it as an item (like breaking a boat) — a discoverable pick-up. */
+    @Override
+    public boolean attackEntityFrom(net.minecraft.util.DamageSource source, float amount) {
+        if (this.world.isRemote || this.isDead) {
+            return false;
+        }
+        if (source.getTrueSource() instanceof EntityPlayer && !this.isBeingRidden()) {
+            giveAsItem((EntityPlayer) source.getTrueSource());
+            this.setDead();
+            return true;
+        }
+        return false;
+    }
+
+    /** Park the ridden bike at the rack or dock the rider is looking at (within reach), if any. */
+    private boolean tryParkAtLookedAt(EntityPlayer player) {
+        net.minecraft.util.math.Vec3d eyes = player.getPositionEyes(1.0F);
+        net.minecraft.util.math.Vec3d look = player.getLook(1.0F);
+        double reach = 4.5D;
+        net.minecraft.util.math.RayTraceResult ray = this.world.rayTraceBlocks(
+            eyes, eyes.add(look.x * reach, look.y * reach, look.z * reach));
+        if (ray == null || ray.typeOfHit != net.minecraft.util.math.RayTraceResult.Type.BLOCK) {
+            return false;
+        }
+        net.minecraft.util.math.BlockPos hit = ray.getBlockPos();
+        net.minecraft.block.Block block = this.world.getBlockState(hit).getBlock();
+        if (block instanceof com.micatechnologies.minecraft.ldib.block.BlockBikeDock) {
+            return ((com.micatechnologies.minecraft.ldib.block.BlockBikeDock) block)
+                .tryDockRidden(this.world, hit, player);
+        }
+        if (block instanceof com.micatechnologies.minecraft.ldib.block.BlockBikeRack) {
+            return ((com.micatechnologies.minecraft.ldib.block.BlockBikeRack) block)
+                .tryLockRidden(this.world, hit, player);
+        }
+        return false;
     }
 
     /** Hand this bike to {@code player} as an item (inventory if room, else dropped at their feet). */

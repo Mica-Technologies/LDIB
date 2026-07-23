@@ -43,6 +43,14 @@ public class ItemBike extends Item {
     }
 
     @Override
+    public void addInformation(ItemStack stack, World world, java.util.List<String> tooltip,
+                               net.minecraft.client.util.ITooltipFlag flag) {
+        tooltip.add("§7Right-click the ground to place and ride.");
+        tooltip.add("§7Sneak-right-click or hit it to pick it back up.");
+        tooltip.add("§7Ride up to a rack or dock and right-click to park it.");
+    }
+
+    @Override
     public ActionResult<ItemStack> onItemRightClick(World world, EntityPlayer player, EnumHand hand) {
         ItemStack stack = player.getHeldItem(hand);
 

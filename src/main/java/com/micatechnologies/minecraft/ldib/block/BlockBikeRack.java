@@ -207,6 +207,30 @@ public class BlockBikeRack extends Block {
         return true;
     }
 
+    /**
+     * Lock the bike {@code player} is riding into this rack, if there's room — the "ride up and park"
+     * path called from {@link EntityBike} when the click landed on the bike rather than the rack.
+     * Returns true if the bike was locked.
+     */
+    public boolean tryLockRidden(World world, BlockPos pos, EntityPlayer player) {
+        if (world.isRemote || !(player.getRidingEntity() instanceof EntityBike)) {
+            return false;
+        }
+        IBlockState state = world.getBlockState(pos);
+        TileEntityBikeRack rack = masterTE(world, pos, state);
+        if (rack == null || rack.isFull()) {
+            return false;
+        }
+        EntityBike bike = (EntityBike) player.getRidingEntity();
+        int slot = rack.firstFreeSlot();
+        rack.lock(slot, player.getUniqueID(), player.getName(), bike.variant());
+        bike.removePassengers();
+        bike.setDead();
+        status(player, "Locked your bike to the rack. Only you can unlock it. ("
+            + rack.lockedCount() + "/" + rack.capacity() + ")");
+        return true;
+    }
+
     /** Breaking any part breaks the whole rack and drops every locked bike (exactly once). */
     @Override
     public void breakBlock(World world, BlockPos pos, IBlockState state) {
