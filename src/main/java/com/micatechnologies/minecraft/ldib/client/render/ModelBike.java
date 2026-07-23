@@ -61,6 +61,11 @@ public class ModelBike extends ModelRideable {
      *  2 px-wide chain stay / down tube instead of clipping through them. */
     private static final float PEDAL_OUTBOARD = 2.5F;
 
+    /** Model z of the head tube — the vertical steering axis the front assembly turns about (HT node
+     *  is at z=−6). The fork/front-wheel/stem/handlebars/headlight all emanate from x=0, z=−6, so
+     *  rotating about this axis keeps their bases pinned while their far ends swing. */
+    private static final float HEAD_TUBE_Z = -6.0F;
+
     /**
      * @param hasBattery {@code true} to fit a battery pack + electric lights (any e-bike).
      * @param hasBasket  {@code true} to fit a front basket (the pedal bicycle, and the share e-bike).
@@ -153,7 +158,9 @@ public class ModelBike extends ModelRideable {
     @Override
     public void render(Entity entity, float limbSwing, float limbSwingAmount, float ageInTicks,
                        float netHeadYaw, float headPitch, float scale) {
-        renderGroup(frontWheel, scale);
+        // --- Fixed parts (do NOT steer): rear wheel, cranks/pedals, frame tubes, saddle, battery,
+        // basket, and the head-tube lug (it also buries the fixed down/top-tube joint, so it stays
+        // with the frame; the fork/stem bases sit on the steering axis and remain buried by it).
         renderGroup(rearWheel, scale);
         crankArm.render(scale);
         pedalLeft.render(scale);
@@ -165,11 +172,8 @@ public class ModelBike extends ModelRideable {
         downTube.render(scale);
         seatTube.render(scale);
         topTube.render(scale);
-        fork.render(scale);
         chainStay.render(scale);
         seatStay.render(scale);
-        stem.render(scale);
-        handlebar.render(scale);
         saddle.render(scale);
         if (battery != null) {
             battery.render(scale);
@@ -178,11 +182,27 @@ public class ModelBike extends ModelRideable {
             basket.render(scale);
             basketBracket.render(scale);
         }
+
+        // --- Front assembly: turns with the rider's steering, about the head-tube axis. Fork, front
+        // wheel, stem, handlebars, and the headlight housing all rotate together so a turn looks
+        // ridden. The front wheel already rolls via rotateAngleX on its segments; this is an OUTER Y
+        // rotation, so the wheel keeps rolling while pointed in the steer direction.
+        beginSteer(scale, HEAD_TUBE_Z);
+        renderGroup(frontWheel, scale);
+        fork.render(scale);
+        stem.render(scale);
+        handlebar.render(scale);
         // Light housings are electric hardware — only the e-bike has them; the plain bicycle shows none
         // (which also frees the front for its basket). The lenses/glow are gated the same way by
         // BikeVariant#hasLights() before renderLights is ever called.
         if (electric) {
-            renderHardware(scale, headHousing, brakeHousing);
+            renderHardware(scale, headHousing);
+        }
+        endSteer();
+
+        // Brake housing is on the rear — never steers.
+        if (electric) {
+            renderHardware(scale, brakeHousing);
         }
     }
 
@@ -200,7 +220,15 @@ public class ModelBike extends ModelRideable {
 
     @Override
     public void renderLights(float scale, boolean headlightOn, boolean brakeLightOn, float intensity) {
+        // Headlight lens+glow turn with the bars (same pivot as the housing in render); the brake
+        // lens+glow are on the rear and must not steer, so split into a steered front pass and an
+        // unsteered rear pass.
+        beginSteer(scale, HEAD_TUBE_Z);
         renderLightFixtures(scale, headlightOn, headLens, headGlow,
+            false, brakeLens, brakeGlow, intensity);
+        endSteer();
+
+        renderLightFixtures(scale, false, headLens, headGlow,
             brakeLightOn, brakeLens, brakeGlow, intensity);
     }
 }

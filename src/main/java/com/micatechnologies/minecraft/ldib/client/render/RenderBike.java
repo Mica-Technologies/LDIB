@@ -44,6 +44,11 @@ public class RenderBike extends Render<EntityBike> {
         ModelRideable model = RideableModels.forVariant(entity.variant(), entity.isShare());
         model.setWheelSpin(entity.wheelRotation(partialTicks));
 
+        // Turn the front assembly (fork/wheel/stem/bars/headlight) into the turn by the interpolated
+        // cosmetic steer angle, so a turn looks ridden. Purely visual — the models rotate those parts
+        // about the head-tube axis; the physics heading is already baked into entityYaw above.
+        model.setSteerAngle(entity.steerAngle(partialTicks));
+
         bindEntityTexture(entity);
         model.render(entity, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0625F);
 

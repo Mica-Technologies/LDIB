@@ -77,6 +77,42 @@ public abstract class ModelRideable extends ModelBase {
     public abstract void setWheelSpin(float wheelAngle);
 
     /**
+     * Cosmetic front-assembly steer angle in degrees, set by the renderer each frame (see {@code
+     * EntityBike#steerAngle}). The concrete models rotate their fork/front-wheel/stem/handlebars/
+     * headlight by this much about the steering axis (see {@link #beginSteer}); everything else stays
+     * put. Purely presentational — nothing here feeds back into movement.
+     */
+    private float steerAngle;
+
+    /** Set the front-assembly steer angle (degrees) applied on the next {@link #beginSteer}. */
+    public void setSteerAngle(float degrees) {
+        this.steerAngle = degrees;
+    }
+
+    /**
+     * Begin a steering rotation of the front assembly: push a matrix and rotate {@link #steerAngle}
+     * degrees about the <b>vertical (Y) axis through model x=0, z={@code pivotZ}</b> (the head tube /
+     * stem). Render the steering parts, then call {@link #endSteer} to pop.
+     *
+     * <p>Because {@link ModelRenderer#render(float)} bakes {@code scale} (0.0625) into vertex
+     * positions rather than pushing a GL scale, a {@code GlStateManager.translate} here is in those
+     * same baked units — so the model-space pivot {@code z} is reached by translating {@code
+     * pivotZ * scale}. A Y-axis rotation only needs the pivot's x and z; both models put the axis at
+     * x=0, so only z is translated. The classic pivot form is T(pivot)·R·T(−pivot).</p>
+     */
+    protected void beginSteer(float scale, float pivotZ) {
+        GlStateManager.pushMatrix();
+        GlStateManager.translate(0.0F, 0.0F, pivotZ * scale);
+        GlStateManager.rotate(this.steerAngle, 0.0F, 1.0F, 0.0F);
+        GlStateManager.translate(0.0F, 0.0F, -pivotZ * scale);
+    }
+
+    /** End the {@link #beginSteer} rotation — pops the matrix so later (rear) parts are unaffected. */
+    protected void endSteer() {
+        GlStateManager.popMatrix();
+    }
+
+    /**
      * Draw this rideable's emissive light lenses — a white headlight and a red brake light — glowing at
      * {@code intensity} (1 = full; lower dims them, e.g. a bike idling in a share dock). Variants
      * without lights (the pedal bicycle) are simply never asked to draw them; see {@link

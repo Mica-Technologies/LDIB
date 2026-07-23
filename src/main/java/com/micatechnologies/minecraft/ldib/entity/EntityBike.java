@@ -82,6 +82,19 @@ public class EntityBike extends Entity {
     private float bikeLean;
     private float prevBikeLean;
 
+    /** Degrees the front wheel/handlebars turn per degree/tick of heading change, capped by
+     *  {@link #MAX_STEER_DEG}. A touch stronger than the lean scale so the bars read as clearly
+     *  cranked over — an owner-tunable starting point (the steer is bigger and cruder than a real
+     *  bike's, which barely turns the bars at speed). */
+    private static final float STEER_PER_YAW_RATE = 4.0F;
+    private static final float MAX_STEER_DEG = 30.0F;
+
+    /** Cosmetic front-assembly steer angle, in degrees — the fork/wheel/stem/bars/headlight turn by
+     *  this much so a turn looks ridden. Eased toward its target like {@link #bikeLean}; purely
+     *  presentational and never fed into physics; read by {@code RenderBike}. */
+    private float bikeSteer;
+    private float prevBikeSteer;
+
     public EntityBike(World world) {
         super(world);
         setSize(0.8F, 1.0F);
@@ -302,6 +315,14 @@ public class EntityBike extends Entity {
         this.prevBikeLean = this.bikeLean;
         this.bikeLean += (leanTarget - this.bikeLean) * LEAN_SMOOTHING;
 
+        // Cosmetic front-wheel steer: same eased-toward-target treatment and same sign convention as
+        // the lean (negate the yaw rate) so the front assembly turns INTO the turn along with the
+        // lean — A/left cranks the bars left, D/right cranks them right. Presentational only; the
+        // physics heading is unchanged.
+        float steerTarget = MathHelper.clamp(-yawRate * STEER_PER_YAW_RATE, -MAX_STEER_DEG, MAX_STEER_DEG);
+        this.prevBikeSteer = this.bikeSteer;
+        this.bikeSteer += (steerTarget - this.bikeSteer) * LEAN_SMOOTHING;
+
         // Turn (speed, heading) into this tick's horizontal motion. Minecraft forward for a yaw is
         // (-sin yaw, cos yaw).
         double perTick = this.bikeSpeed * LdibConstants.SECONDS_PER_TICK;
@@ -364,5 +385,11 @@ public class EntityBike extends Entity {
     /** Interpolated cosmetic lean-into-the-turn angle, in degrees — read by the renderer each frame. */
     public float bikeLean(float partialTicks) {
         return this.prevBikeLean + (this.bikeLean - this.prevBikeLean) * partialTicks;
+    }
+
+    /** Interpolated cosmetic front-assembly steer angle, in degrees — read by the renderer each frame
+     *  to turn the fork/wheel/stem/bars/headlight into the turn. */
+    public float steerAngle(float partialTicks) {
+        return this.prevBikeSteer + (this.bikeSteer - this.prevBikeSteer) * partialTicks;
     }
 }

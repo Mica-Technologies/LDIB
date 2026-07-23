@@ -36,6 +36,10 @@ public class ModelScooter extends ModelRideable {
      *  — their faces never coincide at the joint, so no z-fighting there. */
     private static final float HANDLEBAR_THIN = -0.5F;
 
+    /** Model z of the stem — the vertical steering axis the front assembly turns about (the stem sits
+     *  at z=−6). Stem, fork, front wheel, handlebars and headlight all emanate from x=0, z=−6. */
+    private static final float STEM_Z = -6.0F;
+
     /**
      * @param performance {@code true} for the fast/performance scooter variant (chunkier front head
      *                    box), {@code false} for the standard scooter (no accessory) — the only
@@ -90,15 +94,26 @@ public class ModelScooter extends ModelRideable {
     @Override
     public void render(Entity entity, float limbSwing, float limbSwingAmount, float ageInTicks,
                        float netHeadYaw, float headPitch, float scale) {
-        renderGroup(frontWheel, scale);
+        // --- Fixed parts (do NOT steer): rear wheel, deck, rear fender.
         renderGroup(rearWheel, scale);
-        stemLug.render(scale);
         deck.render(scale);
+        fender.render(scale);
+
+        // --- Front assembly: turns with the rider's steering, about the stem axis. Stem, fork, front
+        // wheel, handlebars, and the headlight housing rotate together. The whole steering column is a
+        // rigid unit here (nothing fixed hangs off the stem lug), so the lug steers with it. The front
+        // wheel keeps rolling (rotateAngleX) under this outer Y rotation.
+        beginSteer(scale, STEM_Z);
+        renderGroup(frontWheel, scale);
+        stemLug.render(scale);
         stem.render(scale);
         fork.render(scale);
         handlebar.render(scale);
-        fender.render(scale);
-        renderHardware(scale, headHousing, brakeHousing);
+        renderHardware(scale, headHousing);
+        endSteer();
+
+        // Brake housing is on the rear fender — never steers.
+        renderHardware(scale, brakeHousing);
     }
 
     @Override
@@ -109,7 +124,14 @@ public class ModelScooter extends ModelRideable {
 
     @Override
     public void renderLights(float scale, boolean headlightOn, boolean brakeLightOn, float intensity) {
+        // Headlight lens+glow turn with the bars (same pivot as the housing in render); the rear
+        // brake lens+glow do not. Split into a steered front pass and an unsteered rear pass.
+        beginSteer(scale, STEM_Z);
         renderLightFixtures(scale, headlightOn, headLens, headGlow,
+            false, brakeLens, brakeGlow, intensity);
+        endSteer();
+
+        renderLightFixtures(scale, false, headLens, headGlow,
             brakeLightOn, brakeLens, brakeGlow, intensity);
     }
 }
