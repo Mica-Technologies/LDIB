@@ -27,5 +27,6 @@ public final class LdibNetwork {
         CHANNEL.registerMessage(PacketKioskAction.Handler.class, PacketKioskAction.class, 0, Side.SERVER);
         CHANNEL.registerMessage(PacketOpenKiosk.Handler.class, PacketOpenKiosk.class, 1, Side.CLIENT);
         CHANNEL.registerMessage(PacketGrabBike.Handler.class, PacketGrabBike.class, 2, Side.SERVER);
+        CHANNEL.registerMessage(PacketSyncConfig.Handler.class, PacketSyncConfig.class, 3, Side.CLIENT);
     }
 }

@@ -41,6 +41,7 @@ public class LdibClientProxy extends LdibCommonProxy {
         MinecraftForge.EVENT_BUS.register(
             new com.micatechnologies.minecraft.ldib.client.sound.RideableSoundHandler());
         com.micatechnologies.minecraft.ldib.client.LdibKeyHandler.register();
+        MinecraftForge.EVENT_BUS.register(com.micatechnologies.minecraft.ldib.client.ClientConfigSync.INSTANCE);
         // ModelRegistryEvent is on the MOD bus; register this proxy to the Forge bus is not enough,
         // so subscribe it explicitly to receive the model-registration event.
         MinecraftForge.EVENT_BUS.register(this);
@@ -69,6 +70,12 @@ public class LdibClientProxy extends LdibCommonProxy {
         net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
         mc.addScheduledTask(() -> mc.displayGuiScreen(
             new com.micatechnologies.minecraft.ldib.client.gui.GuiKiosk(kiosk, hasSession, startTick)));
+    }
+
+    @Override
+    public void applySyncedConfig(double[] values) {
+        net.minecraft.client.Minecraft.getMinecraft().addScheduledTask(
+            () -> com.micatechnologies.minecraft.ldib.client.ClientConfigSync.INSTANCE.apply(values));
     }
 
     private static void bindModel(Item item) {

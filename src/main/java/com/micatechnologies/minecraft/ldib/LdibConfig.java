@@ -101,6 +101,49 @@ public final class LdibConfig {
         load();
     }
 
+    // --- Server → client sync ----------------------------------------------------------------
+    //
+    // Every value here changes movement RESULTS (or a client-side prompt derived from a server rule),
+    // so on a dedicated server the server's copy is authoritative and is pushed to each client on join
+    // (see PacketSyncConfig); the client restores its own values on disconnect. Keep captureSyncable()
+    // and applySyncable() in lockstep — same values, same order. The client-only `enableRideHud` is
+    // presentation and is deliberately NOT synced.
+
+    /** Snapshot the syncable values (movement tuning + the station radius) in a fixed order. */
+    public static double[] captureSyncable() {
+        return new double[] {
+            maxSpeed, pedalAcceleration, brakeDeceleration, rollingResistance, airDrag,
+            maxSteerRateDegPerSec, steerSpeedFalloff, physicsSubSteps,
+            ebikeMaxSpeed, ebikePedalAcceleration,
+            scooterMaxSpeed, scooterAcceleration, scooterBrakeDeceleration,
+            scooterMaxSteerRateDegPerSec, scooterSteerSpeedFalloff,
+            scooterFastMaxSpeed, scooterFastAcceleration,
+            shareStationRadius,
+        };
+    }
+
+    /** Apply values captured by {@link #captureSyncable()} (same order) into the live fields. */
+    public static void applySyncable(double[] v) {
+        maxSpeed = v[0];
+        pedalAcceleration = v[1];
+        brakeDeceleration = v[2];
+        rollingResistance = v[3];
+        airDrag = v[4];
+        maxSteerRateDegPerSec = v[5];
+        steerSpeedFalloff = v[6];
+        physicsSubSteps = (int) v[7];
+        ebikeMaxSpeed = v[8];
+        ebikePedalAcceleration = v[9];
+        scooterMaxSpeed = v[10];
+        scooterAcceleration = v[11];
+        scooterBrakeDeceleration = v[12];
+        scooterMaxSteerRateDegPerSec = v[13];
+        scooterSteerSpeedFalloff = v[14];
+        scooterFastMaxSpeed = v[15];
+        scooterFastAcceleration = v[16];
+        shareStationRadius = (int) v[17];
+    }
+
     /** The pedal-bicycle handling, from the current config values. */
     public static BikeTuning bicycleTuning() {
         return new BikeTuning(maxSpeed, pedalAcceleration, brakeDeceleration,

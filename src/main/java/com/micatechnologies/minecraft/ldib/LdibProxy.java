@@ -22,4 +22,10 @@ public interface LdibProxy {
      * packet handler; a no-op on the server so the handler stays side-safe.
      */
     void openKioskGui(BlockPos kiosk, boolean hasSession, long startTick);
+
+    /**
+     * Apply movement config values pushed from the server on join (client only; a no-op on the
+     * server). The client snapshots its own values first and restores them on disconnect.
+     */
+    void applySyncedConfig(double[] values);
 }

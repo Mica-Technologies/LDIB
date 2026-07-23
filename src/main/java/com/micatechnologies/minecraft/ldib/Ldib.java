@@ -109,6 +109,16 @@ public class Ldib {
         LdibSounds.register(event.getRegistry());
     }
 
+    /** Push this server's movement config to each client as it joins, so prediction matches. */
+    @SubscribeEvent
+    public void onPlayerLogin(net.minecraftforge.fml.common.gameevent.PlayerEvent.PlayerLoggedInEvent event) {
+        if (event.player instanceof net.minecraft.entity.player.EntityPlayerMP) {
+            com.micatechnologies.minecraft.ldib.network.LdibNetwork.CHANNEL.sendTo(
+                com.micatechnologies.minecraft.ldib.network.PacketSyncConfig.current(),
+                (net.minecraft.entity.player.EntityPlayerMP) event.player);
+        }
+    }
+
     @EventHandler
     public void init(FMLInitializationEvent event) {
         proxy.init(event);

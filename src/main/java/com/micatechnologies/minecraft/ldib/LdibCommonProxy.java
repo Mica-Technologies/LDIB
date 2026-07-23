@@ -27,4 +27,9 @@ public class LdibCommonProxy implements LdibProxy {
     public void openKioskGui(BlockPos kiosk, boolean hasSession, long startTick) {
         // No GUI on a dedicated server.
     }
+
+    @Override
+    public void applySyncedConfig(double[] values) {
+        // The server owns the authoritative config; nothing to apply on the server side.
+    }
 }
