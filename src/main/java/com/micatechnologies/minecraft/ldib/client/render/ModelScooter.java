@@ -33,7 +33,12 @@ public class ModelScooter extends ModelRideable {
     /** Thin the stem/handlebars ~33% from 2 px: −0.33 px on each face → ~1.34 px. */
     private static final float THIN = -0.33F;
 
-    public ModelScooter() {
+    /**
+     * @param performance {@code true} for the fast/performance scooter variant (chunkier front head
+     *                    box), {@code false} for the standard scooter (no accessory) — the only
+     *                    difference from the base scooter geometry.
+     */
+    public ModelScooter(boolean performance) {
         this.textureWidth = ATLAS_W;
         this.textureHeight = ATLAS_H;
 
@@ -45,9 +50,11 @@ public class ModelScooter extends ModelRideable {
         frontWheel = buildWheel(3.0F, -6.0F, 3, 1, TYRE_U, TYRE_V);
         rearWheel = buildWheel(3.0F, 6.0F, 3, 1, TYRE_U, TYRE_V);
 
-        // Low deck the rider stands on, from just behind the stem back toward the rear wheel.
+        // Low deck the rider stands on. The performance scooter gets a wider deck (6 px vs 4) — a
+        // clean, clip-free way to make it read as beefier than the standard scooter.
+        int deckWidth = performance ? 6 : 4;
         deck = new ModelRenderer(this, ACCENT_U, ACCENT_V);
-        deck.addBox(-2.0F, 4.0F, -3.0F, 4, 1, 9);
+        deck.addBox(-deckWidth / 2.0F, 4.0F, -3.0F, deckWidth, 1, 9);
         deck.setRotationPoint(0.0F, 0.0F, 0.0F);
 
         // Tall front stem up to the handlebars (slimmed ~33%), plus a short fork to the front wheel.

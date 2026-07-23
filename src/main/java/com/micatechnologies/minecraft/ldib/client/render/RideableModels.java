@@ -14,15 +14,30 @@ import com.micatechnologies.minecraft.ldib.entity.BikeVariant;
  */
 public final class RideableModels {
 
-    private static final ModelBike BIKE = new ModelBike();
-    private static final ModelScooter SCOOTER = new ModelScooter();
+    private static final ModelBike BICYCLE_MODEL = new ModelBike(false);
+    private static final ModelBike EBIKE_MODEL = new ModelBike(true);
+    private static final ModelScooter SCOOTER_MODEL = new ModelScooter(false);
+    private static final ModelScooter SCOOTER_FAST_MODEL = new ModelScooter(true);
 
     private RideableModels() {
         throw new AssertionError("No instances.");
     }
 
-    /** The model for {@code variant}: the scooter model for scooters, the bike model otherwise. */
+    /**
+     * The model for {@code variant} — one instance per variant now, so each can carry its own
+     * accessory geometry (basket, battery pack, beefed-up head) distinguishing it at a glance.
+     */
     public static ModelRideable forVariant(BikeVariant variant) {
-        return (variant == BikeVariant.SCOOTER || variant == BikeVariant.SCOOTER_FAST) ? SCOOTER : BIKE;
+        // if/else, not switch, to avoid a synthetic switch-map class (see BikeVariant#tuning()).
+        if (variant == BikeVariant.EBIKE) {
+            return EBIKE_MODEL;
+        }
+        if (variant == BikeVariant.SCOOTER) {
+            return SCOOTER_MODEL;
+        }
+        if (variant == BikeVariant.SCOOTER_FAST) {
+            return SCOOTER_FAST_MODEL;
+        }
+        return BICYCLE_MODEL;
     }
 }
