@@ -1,6 +1,7 @@
 package com.micatechnologies.minecraft.ldib;
 
 import com.micatechnologies.minecraft.ldib.block.LdibBlocks;
+import com.micatechnologies.minecraft.ldib.block.TileEntityBikeDock;
 import com.micatechnologies.minecraft.ldib.block.TileEntityBikeRack;
 import com.micatechnologies.minecraft.ldib.entity.EntityBike;
 import com.micatechnologies.minecraft.ldib.item.LdibItems;
@@ -69,6 +70,8 @@ public class Ldib {
         LdibItems.init();
         GameRegistry.registerTileEntity(TileEntityBikeRack.class,
             new ResourceLocation(LdibConstants.MOD_NAMESPACE, "bike_rack"));
+        GameRegistry.registerTileEntity(TileEntityBikeDock.class,
+            new ResourceLocation(LdibConstants.MOD_NAMESPACE, "bike_dock"));
         LdibTab.initTabElements();
         proxy.preInit(event);
         LOGGER.info("I am {} at version {}", LdibConstants.MOD_NAME, LdibConstants.MOD_VERSION);

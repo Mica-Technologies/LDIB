@@ -43,6 +43,10 @@ public class EntityBike extends Entity {
     private static final DataParameter<Integer> VARIANT =
         EntityDataManager.createKey(EntityBike.class, DataSerializers.VARINT);
 
+    /** Whether the rider is braking — synced so every observer's client can light the brake light. */
+    private static final DataParameter<Boolean> BRAKING =
+        EntityDataManager.createKey(EntityBike.class, DataSerializers.BOOLEAN);
+
     /** Forward ground speed in blocks/second — the one state variable the physics model owns. */
     private double bikeSpeed;
 
@@ -61,11 +65,17 @@ public class EntityBike extends Entity {
     @Override
     protected void entityInit() {
         this.dataManager.register(VARIANT, BikeVariant.BICYCLE.id());
+        this.dataManager.register(BRAKING, false);
     }
 
     /** This bike's variant — drives both its handling ({@link BikeVariant#tuning()}) and its look. */
     public BikeVariant variant() {
         return BikeVariant.byId(this.dataManager.get(VARIANT));
+    }
+
+    /** Whether the rider is currently braking — read by the renderer to light the brake light. */
+    public boolean isBraking() {
+        return this.dataManager.get(BRAKING);
     }
 
     // --- Riding contract ---------------------------------------------------------------------
@@ -108,12 +118,13 @@ public class EntityBike extends Entity {
 
     @Override
     public double getMountedYOffset() {
-        return 0.45D;
+        // Per-variant: a bike seats its rider high on the saddle; a scooter stands them on the deck.
+        return variant().pose().mountOffset();
     }
 
     @Override
     public boolean shouldRiderSit() {
-        return true;
+        return variant().pose().seated();
     }
 
     @Override
@@ -161,6 +172,12 @@ public class EntityBike extends Entity {
             // A left turn decreases yaw, and BikePhysics adds steer to heading, so negate strafing.
             throttle = MathHelper.clamp(rider.moveForward, -1.0F, 1.0F);
             steer = -MathHelper.clamp(rider.moveStrafing, -1.0F, 1.0F);
+        }
+
+        // Brake light: the rider is braking when applying reverse throttle (S). Set server-side; the
+        // synced flag lights the brake light on every observer's client.
+        if (!this.world.isRemote) {
+            this.dataManager.set(BRAKING, throttle < 0.0D);
         }
 
         int subSteps = Math.max(1, LdibConfig.physicsSubSteps);

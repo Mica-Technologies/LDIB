@@ -50,6 +50,21 @@ public final class LdibConfig {
     /** E-bike acceleration (motor assist), blocks/second². Brisker off the line than a pedal bike. */
     public static double ebikePedalAcceleration = 5.5D;
 
+    /** Scooter top speed, blocks/second. A kick/e-scooter is slower than a bicycle. */
+    public static double scooterMaxSpeed = 5.5D;
+
+    /** Scooter acceleration, blocks/second². */
+    public static double scooterAcceleration = 4.0D;
+
+    /** Scooter braking, blocks/second². Small wheels = weaker brakes than a bike. */
+    public static double scooterBrakeDeceleration = 6.0D;
+
+    /** Scooter max steering rate at low speed, degrees/second. Twitchier than a bike. */
+    public static double scooterMaxSteerRateDegPerSec = 120.0D;
+
+    /** Speed (blocks/s) at which scooter steering authority has halved. Lower = twitchier at speed. */
+    public static double scooterSteerSpeedFalloff = 3.5D;
+
     /**
      * Physics sub-steps per game tick. One 50 ms step is coarse for steering; sub-stepping is the
      * cheap fix and costs integrator time only, never bandwidth.
@@ -87,6 +102,16 @@ public final class LdibConfig {
             rollingResistance, airDrag, maxSteerRateDegPerSec, steerSpeedFalloff);
     }
 
+    /**
+     * The scooter handling: slower than a bicycle with brisker but weaker braking and twitchier
+     * steering (small wheels, standing rider), sharing the bicycle's roll/air drag. Same "variants
+     * are data" principle as the e-bike — a handful of overridden numbers, no new code path.
+     */
+    public static BikeTuning scooterTuning() {
+        return new BikeTuning(scooterMaxSpeed, scooterAcceleration, scooterBrakeDeceleration,
+            rollingResistance, airDrag, scooterMaxSteerRateDegPerSec, scooterSteerSpeedFalloff);
+    }
+
     private static void load() {
         config.load();
 
@@ -119,6 +144,18 @@ public final class LdibConfig {
         ebikePedalAcceleration = config.get(CATEGORY_PHYSICS, "ebikePedalAcceleration",
             ebikePedalAcceleration, "E-bike acceleration (motor assist), blocks/second^2.",
             0.1D, 50.0D).getDouble();
+        scooterMaxSpeed = config.get(CATEGORY_PHYSICS, "scooterMaxSpeed", scooterMaxSpeed,
+            "Scooter top speed, blocks/second.", 1.0D, 60.0D).getDouble();
+        scooterAcceleration = config.get(CATEGORY_PHYSICS, "scooterAcceleration", scooterAcceleration,
+            "Scooter acceleration, blocks/second^2.", 0.1D, 50.0D).getDouble();
+        scooterBrakeDeceleration = config.get(CATEGORY_PHYSICS, "scooterBrakeDeceleration",
+            scooterBrakeDeceleration, "Scooter braking, blocks/second^2.", 0.1D, 100.0D).getDouble();
+        scooterMaxSteerRateDegPerSec = config.get(CATEGORY_PHYSICS, "scooterMaxSteerRateDegPerSec",
+            scooterMaxSteerRateDegPerSec, "Scooter max steering rate at low speed, degrees/second.",
+            1.0D, 720.0D).getDouble();
+        scooterSteerSpeedFalloff = config.get(CATEGORY_PHYSICS, "scooterSteerSpeedFalloff",
+            scooterSteerSpeedFalloff, "Speed (blocks/s) at which scooter steering authority has halved.",
+            0.1D, 60.0D).getDouble();
 
         enableRideHud = config.get(CATEGORY_CLIENT, "enableRideHud", enableRideHud,
             "Show the live speed readout while riding.").getBoolean();

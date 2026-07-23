@@ -1,6 +1,5 @@
 package com.micatechnologies.minecraft.ldib.client.render;
 
-import net.minecraft.client.model.ModelBase;
 import net.minecraft.client.model.ModelRenderer;
 import net.minecraft.entity.Entity;
 
@@ -20,7 +19,7 @@ import net.minecraft.entity.Entity;
  *
  * <p>Units are texture pixels; a 16-pixel span is one block. Wheels are 12 px ≈ 0.75 block.</p>
  */
-public class ModelBike extends ModelBase {
+public class ModelBike extends ModelRideable {
 
     private final ModelRenderer rearWheel;
     private final ModelRenderer frontWheel;
@@ -28,6 +27,8 @@ public class ModelBike extends ModelBase {
     private final ModelRenderer seatPost;
     private final ModelRenderer seat;
     private final ModelRenderer handlebar;
+    private final ModelRenderer headlight;
+    private final ModelRenderer brakeLight;
 
     public ModelBike() {
         this.textureWidth = 64;
@@ -62,6 +63,16 @@ public class ModelBike extends ModelBase {
         handlebar = new ModelRenderer(this, 0, 0);
         handlebar.addBox(-5.0F, -1.0F, -1.0F, 10, 2, 2);
         handlebar.setRotationPoint(0.0F, -9.0F, 7.0F);
+
+        // Light fixtures (drawn only by renderLights, and only for variants with lights). Front is +z:
+        // headlight just below the handlebars facing forward; brake light high at the rear.
+        headlight = new ModelRenderer(this, 0, 0);
+        headlight.addBox(-1.5F, -8.0F, 8.0F, 3, 2, 1);
+        headlight.setRotationPoint(0.0F, 0.0F, 0.0F);
+
+        brakeLight = new ModelRenderer(this, 0, 0);
+        brakeLight.addBox(-1.5F, -6.0F, -9.0F, 3, 2, 1);
+        brakeLight.setRotationPoint(0.0F, 0.0F, 0.0F);
     }
 
     @Override
@@ -76,8 +87,14 @@ public class ModelBike extends ModelBase {
     }
 
     /** Spin the wheels by {@code wheelAngle} radians — called by the renderer from bike speed. */
+    @Override
     public void setWheelSpin(float wheelAngle) {
         this.rearWheel.rotateAngleX = wheelAngle;
         this.frontWheel.rotateAngleX = wheelAngle;
+    }
+
+    @Override
+    public void renderLights(float scale, boolean headlightOn, boolean brakeLightOn) {
+        renderLightFixtures(scale, headlightOn, headlight, brakeLightOn, brakeLight);
     }
 }

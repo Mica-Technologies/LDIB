@@ -25,8 +25,12 @@ public enum RackStyle {
     POST("post", 1, new Slot[] {
         new Slot(0.0F, 0.0F, 0.0F)
     }),
-    GRID("grid", 1, new Slot[] {
-        new Slot(-0.3F, 0.0F, 0.0F), new Slot(0.3F, 0.0F, 0.0F)
+    // 3 blocks long like the wave: a grid rack is a wide floor rail, so make the block wide too
+    // (real wave/grid racks are noticeably wider than a ring rack) — five bikes spread across the
+    // span without clipping. The grid block model tiles its repeating bars cleanly across the parts.
+    GRID("grid", 3, new Slot[] {
+        new Slot(-0.4F, 0.0F, 0.0F), new Slot(0.3F, 0.0F, 0.0F), new Slot(1.0F, 0.0F, 0.0F),
+        new Slot(1.7F, 0.0F, 0.0F), new Slot(2.4F, 0.0F, 0.0F)
     }),
     CLASSIC("classic", 1, new Slot[] {
         new Slot(-0.3F, 0.0F, 0.0F), new Slot(0.3F, 0.0F, 0.0F)

@@ -32,6 +32,9 @@ public class LdibClientProxy extends LdibCommonProxy {
         net.minecraftforge.fml.client.registry.ClientRegistry.bindTileEntitySpecialRenderer(
             com.micatechnologies.minecraft.ldib.block.TileEntityBikeRack.class,
             new com.micatechnologies.minecraft.ldib.client.render.TileEntityBikeRackRenderer());
+        net.minecraftforge.fml.client.registry.ClientRegistry.bindTileEntitySpecialRenderer(
+            com.micatechnologies.minecraft.ldib.block.TileEntityBikeDock.class,
+            new com.micatechnologies.minecraft.ldib.client.render.TileEntityBikeDockRenderer());
         MinecraftForge.EVENT_BUS.register(new RideHud());
         // ModelRegistryEvent is on the MOD bus; register this proxy to the Forge bus is not enough,
         // so subscribe it explicitly to receive the model-registration event.
@@ -50,6 +53,7 @@ public class LdibClientProxy extends LdibCommonProxy {
                 : com.micatechnologies.minecraft.ldib.block.LdibBlocks.racks()) {
             bindModel(Item.getItemFromBlock(rack));
         }
+        bindModel(Item.getItemFromBlock(com.micatechnologies.minecraft.ldib.block.LdibBlocks.dock));
     }
 
     private static void bindModel(Item item) {

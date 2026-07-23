@@ -25,8 +25,6 @@ public class TileEntityBikeRackRenderer extends TileEntitySpecialRenderer<TileEn
      */
     private static final float BIKE_SCALE = 0.9F;
 
-    private final ModelBike model = new ModelBike();
-
     /** Rotation that maps the local +X axis onto the block's facing (see class javadoc). */
     private static float frameRotation(EnumFacing facing) {
         switch (facing) {
@@ -42,7 +40,6 @@ public class TileEntityBikeRackRenderer extends TileEntitySpecialRenderer<TileEn
     public void render(TileEntityBikeRack rack, double x, double y, double z, float partialTicks,
                        int destroyStage, float alpha) {
         RackStyle.Slot[] slots = rack.style().slots();
-        this.model.setWheelSpin(0.0F);
 
         GlStateManager.pushMatrix();
         // Centre on the master block, at ground level, then rotate into the rack's local frame.
@@ -55,6 +52,8 @@ public class TileEntityBikeRackRenderer extends TileEntitySpecialRenderer<TileEn
                 continue;
             }
             RackStyle.Slot slot = slots[i];
+            ModelRideable model = RideableModels.forVariant(bike.variant);
+            model.setWheelSpin(0.0F);
 
             GlStateManager.pushMatrix();
             // Local: +X along the length, +Z across it. Ground lift scales with the bike.
@@ -65,7 +64,7 @@ public class TileEntityBikeRackRenderer extends TileEntitySpecialRenderer<TileEn
             GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
 
             bindTexture(bike.variant.texture());
-            this.model.render(null, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0625F);
+            model.render(null, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0625F);
 
             GlStateManager.popMatrix();
         }

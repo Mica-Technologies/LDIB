@@ -20,15 +20,33 @@ import net.minecraft.util.ResourceLocation;
  */
 public enum BikeVariant {
 
-    BICYCLE(0, "bike"),
-    EBIKE(1, "ebike");
+    BICYCLE(0, "bike", RiderPose.SEATED),
+    EBIKE(1, "ebike", RiderPose.SEATED),
+    /** A stand-on kick scooter in the spirit of Bird / Segway — same physics stack, standing rider. */
+    SCOOTER(2, "scooter", RiderPose.STANDING);
 
     private final int id;
     private final String key;
+    private final RiderPose pose;
 
-    BikeVariant(int id, String key) {
+    BikeVariant(int id, String key, RiderPose pose) {
         this.id = id;
         this.key = key;
+        this.pose = pose;
+    }
+
+    /** How the rider sits on this variant — seated on a bike, standing on a scooter. */
+    public RiderPose pose() {
+        return pose;
+    }
+
+    /**
+     * Whether this variant has electric lights — a headlight that comes on in the dark and a brake
+     * light. The e-bike and scooter do (they're powered); a plain pedal bicycle does not. Presentation
+     * only: read by the renderer, never by the physics.
+     */
+    public boolean hasLights() {
+        return this == EBIKE || this == SCOOTER;
     }
 
     /** Stable network/NBT id. Never renumber. */
@@ -48,7 +66,12 @@ public enum BikeVariant {
 
     /** The handling this variant runs with, pulled live from config so retuning needs no code change. */
     public BikeTuning tuning() {
-        return this == EBIKE ? LdibConfig.eBikeTuning() : LdibConfig.bicycleTuning();
+        switch (this) {
+            case EBIKE:   return LdibConfig.eBikeTuning();
+            case SCOOTER: return LdibConfig.scooterTuning();
+            case BICYCLE:
+            default:      return LdibConfig.bicycleTuning();
+        }
     }
 
     /** Resolve a persisted/synced id back to a variant, defaulting to {@link #BICYCLE} if unknown. */

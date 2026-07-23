@@ -5,6 +5,7 @@ import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.entity.Render;
 import net.minecraft.client.renderer.entity.RenderManager;
 import net.minecraft.util.ResourceLocation;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 
 /**
@@ -21,8 +22,6 @@ public class RenderBike extends Render<EntityBike> {
     /** Degrees of cosmetic lean per degree/tick of heading change, capped by {@link #MAX_LEAN_DEG}. */
     private static final float LEAN_PER_YAW_RATE = 3.0F;
     private static final float MAX_LEAN_DEG = 22.0F;
-
-    private final ModelBike model = new ModelBike();
 
     public RenderBike(RenderManager renderManager) {
         super(renderManager);
@@ -46,12 +45,23 @@ public class RenderBike extends Render<EntityBike> {
 
         GlStateManager.scale(-1.0F, -1.0F, 1.0F);
 
-        // Spin the wheels proportionally to ground speed so the bike reads as moving.
+        // Spin the wheels proportionally to ground speed so the rideable reads as moving.
         float wheelAngle = (float) (entity.speed() * (partialTicks + entity.ticksExisted) * 0.4D);
-        this.model.setWheelSpin(wheelAngle);
+        ModelRideable model = RideableModels.forVariant(entity.variant());
+        model.setWheelSpin(wheelAngle);
 
         bindEntityTexture(entity);
-        this.model.render(entity, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0625F);
+        model.render(entity, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0625F);
+
+        // Emissive lights (e-bike / scooter): headlight on when it's dark at the bike, brake light on
+        // when braking — flashing while braking, otherwise a steady tail light in the dark.
+        if (entity.variant().hasLights()) {
+            BlockPos pos = new BlockPos(entity.posX, entity.posY + 0.5D, entity.posZ);
+            boolean dark = entity.world.getLight(pos) < 8;
+            boolean braking = entity.isBraking();
+            boolean rearOn = braking ? (entity.ticksExisted % 10 < 6) : dark;
+            model.renderLights(0.0625F, dark, rearOn);
+        }
 
         GlStateManager.popMatrix();
         super.doRender(entity, x, y, z, entityYaw, partialTicks);

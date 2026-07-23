@@ -2,6 +2,7 @@ itemGroup.ldib=Immersive Biking
 
 item.ldib.bike.name=Bicycle
 item.ldib.ebike.name=E-Bike
+item.ldib.scooter.name=Scooter
 entity.bike.name=Bike
 
 tile.ldib.bike_rack_hoop.name=Bike Rack (Hoop)
@@ -9,3 +10,5 @@ tile.ldib.bike_rack_wave.name=Bike Rack (Wave)
 tile.ldib.bike_rack_post.name=Bike Rack (Post)
 tile.ldib.bike_rack_grid.name=Bike Rack (Grid)
 tile.ldib.bike_rack_classic.name=Bike Rack (Classic)
+
+tile.ldib.bike_dock.name=Bike Dock

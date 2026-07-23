@@ -19,6 +19,9 @@ public final class LdibBlocks {
     /** One rack block per style, in {@link RackStyle} order. */
     public static final List<BlockBikeRack> racks = new ArrayList<>();
 
+    /** The bike-share dock (Phase 7.1) — public infrastructure, counterpart to the private racks. */
+    public static BlockBikeDock dock;
+
     private LdibBlocks() {
         throw new AssertionError("No instances.");
     }
@@ -27,10 +30,16 @@ public final class LdibBlocks {
         for (RackStyle style : RackStyle.values()) {
             BlockBikeRack block = LdibRegistry.addBlock(new BlockBikeRack(style));
             racks.add(block);
-            ItemBlock item = new ItemBlock(block);
-            item.setRegistryName(block.getRegistryName());
-            LdibRegistry.addItem(item);
+            registerItemBlock(block);
         }
+        dock = LdibRegistry.addBlock(new BlockBikeDock());
+        registerItemBlock(dock);
+    }
+
+    private static void registerItemBlock(net.minecraft.block.Block block) {
+        ItemBlock item = new ItemBlock(block);
+        item.setRegistryName(block.getRegistryName());
+        LdibRegistry.addItem(item);
     }
 
     public static List<BlockBikeRack> racks() {

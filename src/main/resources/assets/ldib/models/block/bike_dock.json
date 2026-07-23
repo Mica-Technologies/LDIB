@@ -1,0 +1,47 @@
+{
+  "textures": {
+    "particle": "ldib:blocks/dock",
+    "dock": "ldib:blocks/dock"
+  },
+  "elements": [
+    {
+      "__comment": "base pad",
+      "from": [2, 0, 2],
+      "to": [14, 1, 14],
+      "faces": {
+        "down": { "texture": "#dock" },
+        "up": { "texture": "#dock" },
+        "north": { "texture": "#dock" },
+        "south": { "texture": "#dock" },
+        "west": { "texture": "#dock" },
+        "east": { "texture": "#dock" }
+      }
+    },
+    {
+      "__comment": "central bollard",
+      "from": [6, 1, 6],
+      "to": [10, 9, 10],
+      "faces": {
+        "down": { "texture": "#dock" },
+        "up": { "texture": "#dock" },
+        "north": { "texture": "#dock" },
+        "south": { "texture": "#dock" },
+        "west": { "texture": "#dock" },
+        "east": { "texture": "#dock" }
+      }
+    },
+    {
+      "__comment": "front wheel-clip arm, toward +X (facing=east default)",
+      "from": [10, 2, 7],
+      "to": [14, 6, 9],
+      "faces": {
+        "down": { "texture": "#dock" },
+        "up": { "texture": "#dock" },
+        "north": { "texture": "#dock" },
+        "south": { "texture": "#dock" },
+        "west": { "texture": "#dock" },
+        "east": { "texture": "#dock" }
+      }
+    }
+  ]
+}
