@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "bbb",
+    "i i"
+  ],
+  "key": {
+    "b": { "item": "minecraft:iron_bars" },
+    "i": { "item": "minecraft:iron_ingot" }
+  },
+  "result": { "item": "ldib:bike_rack_hoop" }
+}
