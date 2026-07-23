@@ -38,14 +38,21 @@ public final class LdibItems {
         scooterFast = LdibRegistry.addItem(new ItemBike(BikeVariant.SCOOTER_FAST));
     }
 
-    /** The item form of a given variant — used to hand a bike back out of a rack or dock. */
+    /**
+     * The item form of a given variant — used to hand a bike back out of a rack or dock. {@code if}/
+     * {@code else} rather than {@code switch} on purpose (see {@link BikeVariant#tuning()}): avoids the
+     * synthetic switch-map class a {@code switch} over an enum would generate.
+     */
     public static ItemBike forVariant(BikeVariant variant) {
-        switch (variant) {
-            case EBIKE:        return ebike;
-            case SCOOTER:      return scooter;
-            case SCOOTER_FAST: return scooterFast;
-            case BICYCLE:
-            default:           return bike;
+        if (variant == BikeVariant.EBIKE) {
+            return ebike;
         }
+        if (variant == BikeVariant.SCOOTER) {
+            return scooter;
+        }
+        if (variant == BikeVariant.SCOOTER_FAST) {
+            return scooterFast;
+        }
+        return bike;
     }
 }

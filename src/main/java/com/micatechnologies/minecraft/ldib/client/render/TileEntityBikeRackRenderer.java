@@ -27,13 +27,17 @@ public class TileEntityBikeRackRenderer extends TileEntitySpecialRenderer<TileEn
 
     /** Rotation that maps the local +X axis onto the block's facing (see class javadoc). */
     private static float frameRotation(EnumFacing facing) {
-        switch (facing) {
-            case SOUTH: return -90.0F;
-            case WEST:  return -180.0F;
-            case NORTH: return -270.0F;
-            case EAST:
-            default:    return 0.0F;
+        // if/else, not switch, to avoid a synthetic switch-map class (see BikeVariant#tuning()).
+        if (facing == EnumFacing.SOUTH) {
+            return -90.0F;
         }
+        if (facing == EnumFacing.WEST) {
+            return -180.0F;
+        }
+        if (facing == EnumFacing.NORTH) {
+            return -270.0F;
+        }
+        return 0.0F; // EAST
     }
 
     @Override

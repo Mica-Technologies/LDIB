@@ -66,15 +66,25 @@ public enum BikeVariant {
         return new ResourceLocation(LdibConstants.MOD_NAMESPACE, "textures/entity/" + key + ".png");
     }
 
-    /** The handling this variant runs with, pulled live from config so retuning needs no code change. */
+    /**
+     * The handling this variant runs with, pulled live from config so retuning needs no code change.
+     *
+     * <p>Deliberately {@code if}/{@code else} rather than {@code switch (this)}: a switch over an enum
+     * makes javac emit a synthetic {@code BikeVariant$1} switch-map class, a separate class file that
+     * is one more thing to go missing (it crashed a dev client whose classes were rebuilt underneath
+     * it: {@code NoClassDefFoundError: BikeVariant$1}). Reference comparisons need no synthetic class.</p>
+     */
     public BikeTuning tuning() {
-        switch (this) {
-            case EBIKE:        return LdibConfig.eBikeTuning();
-            case SCOOTER:      return LdibConfig.scooterTuning();
-            case SCOOTER_FAST: return LdibConfig.scooterFastTuning();
-            case BICYCLE:
-            default:           return LdibConfig.bicycleTuning();
+        if (this == EBIKE) {
+            return LdibConfig.eBikeTuning();
         }
+        if (this == SCOOTER) {
+            return LdibConfig.scooterTuning();
+        }
+        if (this == SCOOTER_FAST) {
+            return LdibConfig.scooterFastTuning();
+        }
+        return LdibConfig.bicycleTuning();
     }
 
     /** Resolve a persisted/synced id back to a variant, defaulting to {@link #BICYCLE} if unknown. */
