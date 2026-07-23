@@ -20,8 +20,10 @@ import net.minecraft.client.renderer.OpenGlHelper;
  *
  * <p><b>Round-ish wheels.</b> {@link #buildWheel} makes a wheel as a ring of twelve short rim
  * segments sitting at the radius (a 12-gon tyre) plus a small hub — nothing crosses the centre, so
- * there is no pile of overlapping faces to z-fight and it reads as round rather than as spokes.
- * Spinning is just adding an angle to every segment ({@link #spinWheel}).</p>
+ * there is no pile of overlapping faces to z-fight and it reads as round. Spinning is just adding an
+ * angle to every segment ({@link #spinWheel}). Optionally it also adds a handful of literal spokes
+ * between the hub and the rim (radial, not crossing the centre either — same reasoning) for wheels big
+ * enough that they read clearly, e.g. the bike's; see the {@code withSpokes} overload.</p>
  *
  * <p><b>Avoiding z-fighting.</b> Frame tubes all share the {@code x = ±(w/2)} side planes, so where
  * two of them overlap (at a joint) their faces fight. {@link #lug} drops a slightly-wider cube at a
@@ -65,6 +67,11 @@ public abstract class ModelRideable extends ModelBase {
     private static final int WHEEL_SEGMENTS = 12;
     private static final double SEGMENT_STEP = 2.0 * Math.PI / WHEEL_SEGMENTS; // 30°
     private static final int RIM_DEPTH = 2; // radial thickness of the tyre, px
+
+    /** Spokes per wheel, evenly spaced, for {@link #buildWheel(float, float, int, int, int, int, boolean)}. */
+    private static final int SPOKE_COUNT = 6;
+    private static final double SPOKE_STEP = 2.0 * Math.PI / SPOKE_COUNT; // 60°
+    private static final int SPOKE_THICK = 1; // px, both cross-section dims
 
     /** Spin the wheels by {@code wheelAngle} radians — called by renderers from ground speed. */
     public abstract void setWheelSpin(float wheelAngle);
@@ -161,13 +168,29 @@ public abstract class ModelRideable extends ModelBase {
     /**
      * As {@link #buildWheel(float, float, int, int)} but every rim segment and the hub sample the
      * material region at {@code (texU, texV)} — the tyre colour. All 13 parts intentionally share the
-     * one offset.
+     * one offset. No spokes (see the 7-arg overload) — used as-is by the scooter's small wheels, where
+     * spokes at radius 3 aren't worth the extra geometry.
      */
     protected ModelRenderer[] buildWheel(float ay, float az, int radius, int tireWidth, int texU, int texV) {
+        return buildWheel(ay, az, radius, tireWidth, texU, texV, false);
+    }
+
+    /**
+     * Full form: as {@link #buildWheel(float, float, int, int, int, int)}, optionally adding {@link
+     * #SPOKE_COUNT} thin radial spokes (FRAME-coloured, for a metallic contrast against the dark tyre)
+     * between the hub and the rim — close enough to touch both without entering either one's volume, so
+     * no spoke face ever sits exactly on a rim or hub face (that would z-fight; see class docs). Spokes
+     * carry their own base angle independent of their index in the returned array (see {@link
+     * WheelPart}), so they don't need to line up with the 12 rim segments to spin correctly.
+     */
+    protected ModelRenderer[] buildWheel(float ay, float az, int radius, int tireWidth, int texU, int texV,
+                                          boolean withSpokes) {
         int sideLen = Math.max(2, Math.round(2.0F * radius * (float) Math.sin(Math.PI / WHEEL_SEGMENTS)) + 1);
-        ModelRenderer[] parts = new ModelRenderer[WHEEL_SEGMENTS + 1];
+        int total = WHEEL_SEGMENTS + 1 + (withSpokes ? SPOKE_COUNT : 0);
+        ModelRenderer[] parts = new ModelRenderer[total];
         for (int i = 0; i < WHEEL_SEGMENTS; i++) {
-            ModelRenderer seg = new ModelRenderer(this, texU, texV);
+            float baseAngle = (float) (i * SEGMENT_STEP);
+            WheelPart seg = new WheelPart(this, texU, texV, baseAngle);
             // A slab at the top of the wheel (−y is up), thin radially (RIM_DEPTH), long tangentially.
             // Adjacent segments overlap at the corners and would share the x = ±tireWidth/2 side plane
             // (→ z-fighting); nudge odd segments a third of a pixel in x so no two neighbours are
@@ -175,21 +198,61 @@ public abstract class ModelRideable extends ModelBase {
             float xNudge = (i % 2 == 0) ? 0.0F : 0.34F;
             seg.addBox(-tireWidth / 2.0F + xNudge, -radius, -sideLen / 2.0F, tireWidth, RIM_DEPTH, sideLen);
             seg.setRotationPoint(0.0F, ay, az);
-            seg.rotateAngleX = (float) (i * SEGMENT_STEP);
+            seg.rotateAngleX = baseAngle;
             parts[i] = seg;
         }
         int hub = Math.min(4, radius);
-        ModelRenderer h = new ModelRenderer(this, texU, texV);
+        WheelPart h = new WheelPart(this, texU, texV, 0.0F);
         h.addBox(-tireWidth / 2.0F, -hub / 2.0F, -hub / 2.0F, tireWidth, hub, hub);
         h.setRotationPoint(0.0F, ay, az);
         parts[WHEEL_SEGMENTS] = h;
+
+        if (withSpokes) {
+            // Inner end sits right at the hub's edge, outer end stops right at the rim's inner face —
+            // touching both (so the spoke visually connects hub to rim) without overlapping either
+            // one's box, which is what would put a spoke face exactly on a hub/rim face.
+            int innerR = hub / 2;
+            int outerR = Math.max(innerR + 1, radius - RIM_DEPTH);
+            int spokeLen = outerR - innerR;
+            for (int k = 0; k < SPOKE_COUNT; k++) {
+                float baseAngle = (float) (k * SPOKE_STEP);
+                WheelPart spoke = new WheelPart(this, FRAME_U, FRAME_V, baseAngle);
+                // Same alternating-nudge trick as the rim segments, in case a small hub radius ever
+                // crowds spokes close enough together near the centre to coincide.
+                float xNudge = (k % 2 == 0) ? 0.0F : 0.34F;
+                spoke.addBox(-SPOKE_THICK / 2.0F + xNudge, -outerR, -SPOKE_THICK / 2.0F,
+                    SPOKE_THICK, spokeLen, SPOKE_THICK);
+                spoke.setRotationPoint(0.0F, ay, az);
+                spoke.rotateAngleX = baseAngle;
+                parts[WHEEL_SEGMENTS + 1 + k] = spoke;
+            }
+        }
         return parts;
     }
 
-    /** Re-aim a wheel's rim segments so the whole wheel is rotated by {@code spin} radians. */
+    /**
+     * A {@link ModelRenderer} that remembers its own unspun base angle around the axle, so {@link
+     * #spinWheel} can re-aim every part in a wheel uniformly by adding {@code spin} to that stored angle
+     * instead of deriving it from the part's position in the array. Plain rim segments and the hub still
+     * use {@code i * SEGMENT_STEP} for their base angle (unchanged from before this existed — see
+     * {@link #buildWheel}), so they spin exactly as they always did; spokes use their own {@code
+     * k * SPOKE_STEP} instead, which needs a spacing the shared 12-segment index scheme can't express.
+     */
+    private static final class WheelPart extends ModelRenderer {
+        private final float baseAngle;
+
+        WheelPart(ModelBase model, int texU, int texV, float baseAngle) {
+            super(model, texU, texV);
+            this.baseAngle = baseAngle;
+        }
+    }
+
+    /** Re-aim every part of a wheel (rim segments, hub, and spokes if present) so the whole wheel is
+     *  rotated by {@code spin} radians, each part keeping its own base angle (see {@link WheelPart}). */
     protected static void spinWheel(ModelRenderer[] wheel, float spin) {
-        for (int i = 0; i < wheel.length; i++) {
-            wheel[i].rotateAngleX = (float) (i * SEGMENT_STEP) + spin;
+        for (ModelRenderer part : wheel) {
+            WheelPart wp = (WheelPart) part;
+            wp.rotateAngleX = wp.baseAngle + spin;
         }
     }
 

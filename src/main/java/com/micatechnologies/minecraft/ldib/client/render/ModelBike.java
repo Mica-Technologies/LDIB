@@ -18,6 +18,9 @@ public class ModelBike extends ModelRideable {
 
     private final ModelRenderer[] frontWheel;
     private final ModelRenderer[] rearWheel;
+    private final ModelRenderer crankArm;
+    private final ModelRenderer pedalLeft;
+    private final ModelRenderer pedalRight;
     private final ModelRenderer downTube;
     private final ModelRenderer seatTube;
     private final ModelRenderer topTube;
@@ -46,6 +49,18 @@ public class ModelBike extends ModelRideable {
     /** Whether this is the e-bike (has electric lights + a battery) vs the plain pedal bicycle. */
     private final boolean electric;
 
+    /** Crank radius (BB to pedal), px — well inside the wheel radius (7) so a pedal swinging down never
+     *  pokes past the tyre. */
+    private static final int CRANK_RADIUS = 4;
+    /** Crank arm cross-section, px — thin, and (being 1 px like the tyres, not 2 px like the frame
+     *  tubes) never coplanar with a tube face even on the rare frame it swings past one. */
+    private static final int CRANK_THICK = 1;
+    /** Pedal cube, px. */
+    private static final int PEDAL_SIZE = 2;
+    /** How far outboard (±x) each pedal sits from the centre plane the frame tubes occupy — clears the
+     *  2 px-wide chain stay / down tube instead of clipping through them. */
+    private static final float PEDAL_OUTBOARD = 2.5F;
+
     /**
      * @param hasBattery {@code true} to fit a battery pack + electric lights (any e-bike).
      * @param hasBasket  {@code true} to fit a front basket (the pedal bicycle, and the share e-bike).
@@ -59,8 +74,9 @@ public class ModelBike extends ModelRideable {
         // lugs = FRAME (variant colour), saddle + handlebar grips = ACCENT (secondary colour).
 
         // Wheels (radius 7 = 14 px ≈ 0.875 block): front toward −z, rear toward +z. Thin 1 px tyres.
-        frontWheel = buildWheel(-1.0F, -7.0F, 7, 1, TYRE_U, TYRE_V);
-        rearWheel = buildWheel(-1.0F, 7.0F, 7, 1, TYRE_U, TYRE_V);
+        // Spoked — the bike's wheels are big enough (unlike the scooter's) for spokes to read clearly.
+        frontWheel = buildWheel(-1.0F, -7.0F, 7, 1, TYRE_U, TYRE_V, true);
+        rearWheel = buildWheel(-1.0F, 7.0F, 7, 1, TYRE_U, TYRE_V, true);
 
         // Frame nodes (model space, +y down, front −z):
         //   bottom bracket BB(+2, 0), head tube HT(−9, −6), seat top ST(−11, +5),
@@ -92,6 +108,28 @@ public class ModelBike extends ModelRideable {
         basket = hasBasket ? box(-2.5F, -13.0F, -12.0F, 5, 4, 4, METAL_U, METAL_V) : null;
         basketBracket = hasBasket ? box(-1.0F, -12.0F, -9.0F, 2, 2, 4, METAL_U, METAL_V) : null;
 
+        // Crank + pedals, rotating about the bottom bracket in time with the wheels (set from the same
+        // wheelAngle in setWheelSpin, so the animated rider's legs, the crank and the wheels never drift
+        // out of phase). The arm is a single thin diametral bar through the BB — both pedal positions at
+        // once — so spinning it by one angle already keeps its two ends 180° apart; the two pedal cubes
+        // are built identically (at the "up" end of the arm) but offset to opposite outboard sides
+        // (clearing the 2 px chain stay / down tube) and are re-aimed with a fixed π offset between them
+        // in setWheelSpin, landing each on its own arm end without duplicating the arm's geometry.
+        crankArm = new ModelRenderer(this, FRAME_U, FRAME_V);
+        crankArm.addBox(-CRANK_THICK / 2.0F, -CRANK_RADIUS, -CRANK_THICK / 2.0F,
+            CRANK_THICK, CRANK_RADIUS * 2, CRANK_THICK);
+        crankArm.setRotationPoint(0.0F, 2.0F, 0.0F);
+
+        pedalRight = new ModelRenderer(this, METAL_U, METAL_V);
+        pedalRight.addBox(PEDAL_OUTBOARD - PEDAL_SIZE / 2.0F, -CRANK_RADIUS - PEDAL_SIZE / 2.0F, -PEDAL_SIZE / 2.0F,
+            PEDAL_SIZE, PEDAL_SIZE, PEDAL_SIZE);
+        pedalRight.setRotationPoint(0.0F, 2.0F, 0.0F);
+
+        pedalLeft = new ModelRenderer(this, METAL_U, METAL_V);
+        pedalLeft.addBox(-PEDAL_OUTBOARD - PEDAL_SIZE / 2.0F, -CRANK_RADIUS - PEDAL_SIZE / 2.0F, -PEDAL_SIZE / 2.0F,
+            PEDAL_SIZE, PEDAL_SIZE, PEDAL_SIZE);
+        pedalLeft.setRotationPoint(0.0F, 2.0F, 0.0F);
+
         // Joint lugs bury the overlapping tube ends at each convergence (see ModelRideable).
         bbLug = lug(2.0F, 0.0F, 3, FRAME_U, FRAME_V);   // bottom bracket: down/seat/chain
         htLug = lug(-9.0F, -6.0F, 3, FRAME_U, FRAME_V); // head tube: down/top/fork/stem
@@ -117,6 +155,9 @@ public class ModelBike extends ModelRideable {
                        float netHeadYaw, float headPitch, float scale) {
         renderGroup(frontWheel, scale);
         renderGroup(rearWheel, scale);
+        crankArm.render(scale);
+        pedalLeft.render(scale);
+        pedalRight.render(scale);
         bbLug.render(scale);
         htLug.render(scale);
         stLug.render(scale);
@@ -149,6 +190,12 @@ public class ModelBike extends ModelRideable {
     public void setWheelSpin(float wheelAngle) {
         spinWheel(frontWheel, wheelAngle);
         spinWheel(rearWheel, wheelAngle);
+        // Same angle as the wheels, so the crank stays in phase with them (and with the rider's
+        // already-animated pedalling legs, which are driven from the same value). The right pedal
+        // shares the arm's angle; the left is a fixed half-turn (π) ahead — see the field comment.
+        crankArm.rotateAngleX = wheelAngle;
+        pedalRight.rotateAngleX = wheelAngle;
+        pedalLeft.rotateAngleX = wheelAngle + (float) Math.PI;
     }
 
     @Override
