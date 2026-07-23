@@ -83,17 +83,53 @@ for _base in ("bike", "ebike", "scooter", "scooter_fast"):
     PALETTES["share_" + _base] = SHARE_LIVERY
 
 
-def shade(base, x, w, y, h):
-    """Soft directional shading so flat solid faces read as 3D.
+def _mul(base, f):
+    return tuple(max(0, min(255, round(c * f))) for c in base)
 
-    Top of a region unwraps to the top/bottom faces, the strip below to the four
-    sides, so a top-lighter vertical gradient plus a slightly-darker right edge
-    approximates a light from the top-left without needing per-face pixels.
+
+def shade(base, x, w, y, h, mat="frame"):
+    """Hand-painted per-material shading so the low-poly parts read as 3D.
+
+    Every region gets the same light-from-the-top-left base gradient (the top of
+    a region unwraps to the up-facing faces), then a material-specific detail
+    pass paints in the character the flat colour can't carry on its own:
+
+      tyre   - a bright top rim + a diagonal tread-lug pattern
+      frame  - a rounded-metal specular highlight near the left, weld seam mid-tube
+      accent - leather/grip stipple with periodic stitch / grip channel lines
+      metal  - vertical brushed streaks with a rivet at each corner
     """
     fv = 1.12 - 0.30 * (y / max(1, h - 1))      # 1.12 (top) -> 0.82 (bottom)
-    fh = 1.00 - 0.10 * (x / max(1, w - 1))      # 1.00 (left) -> 0.90 (right)
+    fh = 1.02 - 0.12 * (x / max(1, w - 1))      # 1.02 (left) -> 0.90 (right)
     f = fv * fh
-    return tuple(max(0, min(255, round(c * f))) for c in base)
+
+    if mat == "tyre":
+        if y == 0:
+            f *= 1.40                            # bright rim edge
+        elif (x + y) % 3 == 0:
+            f *= 1.20                            # raised tread lug
+        else:
+            f *= 0.90                            # groove between lugs
+    elif mat == "frame":
+        spec = 1.0 - abs(x - 1.4) / max(1.0, w * 0.7)
+        f *= 0.86 + 0.52 * max(0.0, spec)        # specular sheen near the left, darker right
+        if y in (h // 2, h // 2 + 1):
+            f *= 0.90                            # subtle weld seam across the tube
+    elif mat == "accent":
+        if y <= 1:
+            f *= 1.14                            # top sheen band
+        f *= 1.06 if (x + y) % 2 == 0 else 0.95  # fine grain/grip stipple
+        if x % 6 == 3:
+            f *= 0.88                            # stitching / grip channel line
+    elif mat == "metal":
+        f *= 1.08 if x % 2 == 0 else 0.94        # vertical brushed streaks
+        rivets = {(1, 1), (w - 2, 1), (1, h - 2), (w - 2, h - 2)}
+        if (x, y) in rivets:
+            f *= 0.68                            # rivet shadow
+        elif (x - 1, y - 1) in rivets:
+            f *= 1.28                            # rivet highlight
+
+    return _mul(base, f)
 
 
 def build(palette):
@@ -111,7 +147,7 @@ def build(palette):
                     continue
                 cx = min(w - 1, max(0, ox))
                 cy = min(h - 1, max(0, oy))
-                r, g, b = shade(base, cx, w, cy, h)
+                r, g, b = shade(base, cx, w, cy, h, mat)
                 px[gx, gy] = (r, g, b, 255)
     return img
 
