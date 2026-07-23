@@ -42,7 +42,7 @@ public class TileEntityBikeDockRenderer extends TileEntitySpecialRenderer<TileEn
         if (variant == null) {
             return;
         }
-        ModelRideable model = RideableModels.forVariant(variant);
+        ModelRideable model = RideableModels.forVariant(variant, true); // docked bikes are share bikes
         model.setWheelSpin(0.0F);
 
         GlStateManager.pushMatrix();

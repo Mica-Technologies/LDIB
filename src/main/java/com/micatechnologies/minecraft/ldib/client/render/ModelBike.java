@@ -27,12 +27,10 @@ public class ModelBike extends ModelRideable {
     private final ModelRenderer stem;
     private final ModelRenderer handlebar;
     private final ModelRenderer saddle;
-    /**
-     * Per-variant accessory: a front basket on the pedal bicycle, a battery pack on the down tube
-     * for the e-bike. {@code null} is not used here — every {@code ModelBike} has one, just a
-     * different one depending on {@code electric}.
-     */
-    private final ModelRenderer accessory;
+    /** Optional accessories, {@code null} when absent: a battery pack on the down tube and/or a front
+     *  basket. A share e-bike carries both; a personal e-bike just the battery; a bicycle just the basket. */
+    private final ModelRenderer battery;
+    private final ModelRenderer basket;
     private final ModelRenderer bbLug;
     private final ModelRenderer htLug;
     private final ModelRenderer stLug;
@@ -48,12 +46,11 @@ public class ModelBike extends ModelRideable {
     private final boolean electric;
 
     /**
-     * @param electric {@code true} for the e-bike variant (battery pack on the down tube),
-     *                 {@code false} for the pedal bicycle (front basket) — the only difference from
-     *                 the base bike geometry.
+     * @param hasBattery {@code true} to fit a battery pack + electric lights (any e-bike).
+     * @param hasBasket  {@code true} to fit a front basket (the pedal bicycle, and the share e-bike).
      */
-    public ModelBike(boolean electric) {
-        this.electric = electric;
+    public ModelBike(boolean hasBattery, boolean hasBasket) {
+        this.electric = hasBattery;
         this.textureWidth = ATLAS_W;
         this.textureHeight = ATLAS_H;
 
@@ -86,19 +83,11 @@ public class ModelBike extends ModelRideable {
         saddle.addBox(-2.0F, -1.0F, -3.0F, 4, 1, 6);
         saddle.setRotationPoint(0.0F, -12.0F, 5.0F);
 
-        // Accessory: differs per variant so the bike and e-bike read apart at a glance. Both are
-        // wider than any part they sit against, so their faces never share a coplanar plane with the
-        // 2 px fork/down-tube (no z-fighting).
-        if (electric) {
-            // E-bike: a battery pack strapped to the down tube — 3 px wide, straddling (and burying)
-            // the 2 px tube it sits on.
-            accessory = box(-1.5F, -6.0F, -4.0F, 3, 5, 3, METAL_U, METAL_V);
-        } else {
-            // Pedal bicycle: a front basket at handlebar height (y −13..−9, just above the front wheel
-            // top and clear of the handlebar/stem). The bicycle draws no light housings (below), so the
-            // front is free for it.
-            accessory = box(-2.5F, -13.0F, -12.0F, 5, 4, 4, METAL_U, METAL_V);
-        }
+        // Accessories. Battery: a 3 px pack straddling (burying) the 2 px down tube. Basket: a 5 px
+        // box sitting high at the front (y −14..−10), above the front wheel and clear of the front
+        // light housing — so a share e-bike carries both a battery and a basket without clipping.
+        battery = hasBattery ? box(-1.5F, -6.0F, -4.0F, 3, 5, 3, METAL_U, METAL_V) : null;
+        basket = hasBasket ? box(-2.5F, -14.0F, -12.0F, 5, 4, 4, METAL_U, METAL_V) : null;
 
         // Joint lugs bury the overlapping tube ends at each convergence (see ModelRideable).
         bbLug = lug(2.0F, 0.0F, 3, FRAME_U, FRAME_V);   // bottom bracket: down/seat/chain
@@ -135,7 +124,12 @@ public class ModelBike extends ModelRideable {
         stem.render(scale);
         handlebar.render(scale);
         saddle.render(scale);
-        accessory.render(scale);
+        if (battery != null) {
+            battery.render(scale);
+        }
+        if (basket != null) {
+            basket.render(scale);
+        }
         // Light housings are electric hardware — only the e-bike has them; the plain bicycle shows none
         // (which also frees the front for its basket). The lenses/glow are gated the same way by
         // BikeVariant#hasLights() before renderLights is ever called.

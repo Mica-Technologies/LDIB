@@ -41,7 +41,7 @@ public class RenderBike extends Render<EntityBike> {
         // Spin the wheels by the interpolated angle accumulated on the entity (see
         // EntityBike#wheelRotation) so it reads as continuous rolling rather than snapping when speed
         // changes.
-        ModelRideable model = RideableModels.forVariant(entity.variant());
+        ModelRideable model = RideableModels.forVariant(entity.variant(), entity.isShare());
         model.setWheelSpin(entity.wheelRotation(partialTicks));
 
         bindEntityTexture(entity);

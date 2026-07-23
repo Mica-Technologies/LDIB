@@ -56,7 +56,7 @@ public class TileEntityBikeRackRenderer extends TileEntitySpecialRenderer<TileEn
                 continue;
             }
             RackStyle.Slot slot = slots[i];
-            ModelRideable model = RideableModels.forVariant(bike.variant);
+            ModelRideable model = RideableModels.forVariant(bike.variant, false); // racked bikes are personal
             model.setWheelSpin(0.0F);
 
             GlStateManager.pushMatrix();
