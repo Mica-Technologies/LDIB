@@ -1,14 +1,13 @@
 {
   "textures": {
     "particle": "ldib:blocks/kiosk",
-    "kiosk": "ldib:blocks/kiosk",
-    "screen": "ldib:blocks/kiosk_screen"
+    "kiosk": "ldib:blocks/kiosk"
   },
   "elements": [
     {
-      "__comment": "base",
-      "from": [5, 0, 5],
-      "to": [11, 2, 11],
+      "__comment": "base plinth",
+      "from": [3, 0, 3],
+      "to": [13, 2, 13],
       "faces": {
         "down": { "texture": "#kiosk" },
         "up": { "texture": "#kiosk" },
@@ -19,22 +18,9 @@
       }
     },
     {
-      "__comment": "body pillar",
-      "from": [5, 2, 6],
-      "to": [11, 15, 10],
-      "faces": {
-        "down": { "texture": "#kiosk" },
-        "up": { "texture": "#kiosk" },
-        "north": { "texture": "#screen" },
-        "south": { "texture": "#kiosk" },
-        "west": { "texture": "#kiosk" },
-        "east": { "texture": "#kiosk" }
-      }
-    },
-    {
-      "__comment": "slanted canopy top",
-      "from": [4, 15, 5],
-      "to": [12, 17, 11],
+      "__comment": "body pillar (thick), full height of the lower block",
+      "from": [4, 2, 4],
+      "to": [12, 16, 12],
       "faces": {
         "down": { "texture": "#kiosk" },
         "up": { "texture": "#kiosk" },

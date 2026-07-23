@@ -1,8 +1,12 @@
 {
   "variants": {
-    "facing=north": { "model": "ldib:bike_kiosk" },
-    "facing=south": { "model": "ldib:bike_kiosk", "y": 180 },
-    "facing=east": { "model": "ldib:bike_kiosk", "y": 90 },
-    "facing=west": { "model": "ldib:bike_kiosk", "y": 270 }
+    "facing=north,part=0": { "model": "ldib:bike_kiosk_lower" },
+    "facing=north,part=1": { "model": "ldib:bike_kiosk_upper" },
+    "facing=south,part=0": { "model": "ldib:bike_kiosk_lower", "y": 180 },
+    "facing=south,part=1": { "model": "ldib:bike_kiosk_upper", "y": 180 },
+    "facing=east,part=0": { "model": "ldib:bike_kiosk_lower", "y": 90 },
+    "facing=east,part=1": { "model": "ldib:bike_kiosk_upper", "y": 90 },
+    "facing=west,part=0": { "model": "ldib:bike_kiosk_lower", "y": 270 },
+    "facing=west,part=1": { "model": "ldib:bike_kiosk_upper", "y": 270 }
   }
 }

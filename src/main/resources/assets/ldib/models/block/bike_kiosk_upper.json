@@ -1,0 +1,62 @@
+{
+  "textures": {
+    "particle": "ldib:blocks/kiosk",
+    "kiosk": "ldib:blocks/kiosk",
+    "screen": "ldib:blocks/kiosk_screen",
+    "solar": "ldib:blocks/kiosk_solar"
+  },
+  "elements": [
+    {
+      "__comment": "body pillar continues up to the head",
+      "from": [4, 0, 4],
+      "to": [12, 13, 12],
+      "faces": {
+        "down": { "texture": "#kiosk" },
+        "up": { "texture": "#kiosk" },
+        "north": { "texture": "#kiosk" },
+        "south": { "texture": "#kiosk" },
+        "west": { "texture": "#kiosk" },
+        "east": { "texture": "#kiosk" }
+      }
+    },
+    {
+      "__comment": "touchscreen on the front (-z) face",
+      "from": [4.5, 3, 3.4],
+      "to": [11.5, 11, 4],
+      "faces": {
+        "north": { "texture": "#screen" },
+        "up": { "texture": "#kiosk" },
+        "down": { "texture": "#kiosk" },
+        "west": { "texture": "#kiosk" },
+        "east": { "texture": "#kiosk" }
+      }
+    },
+    {
+      "__comment": "neck below the solar cap",
+      "from": [5, 13, 5],
+      "to": [11, 15, 11],
+      "faces": {
+        "down": { "texture": "#kiosk" },
+        "up": { "texture": "#kiosk" },
+        "north": { "texture": "#kiosk" },
+        "south": { "texture": "#kiosk" },
+        "west": { "texture": "#kiosk" },
+        "east": { "texture": "#kiosk" }
+      }
+    },
+    {
+      "__comment": "tilted solar panel on top, overhanging the front",
+      "from": [1, 15, 1],
+      "to": [15, 16, 11],
+      "rotation": { "origin": [8, 15, 6], "axis": "x", "angle": -22.5 },
+      "faces": {
+        "up": { "texture": "#solar" },
+        "down": { "texture": "#solar" },
+        "north": { "texture": "#kiosk" },
+        "south": { "texture": "#kiosk" },
+        "west": { "texture": "#kiosk" },
+        "east": { "texture": "#kiosk" }
+      }
+    }
+  ]
+}
