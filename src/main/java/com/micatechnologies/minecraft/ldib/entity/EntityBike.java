@@ -319,7 +319,10 @@ public class EntityBike extends Entity {
         // the lean (negate the yaw rate) so the front assembly turns INTO the turn along with the
         // lean — A/left cranks the bars left, D/right cranks them right. Presentational only; the
         // physics heading is unchanged.
-        float steerTarget = MathHelper.clamp(-yawRate * STEER_PER_YAW_RATE, -MAX_STEER_DEG, MAX_STEER_DEG);
+        // +yawRate (opposite sign to the lean): a Y-axis steer and a Z-axis lean have opposite
+        // handedness under the renderer's scale(-1,-1,1), so the bars turn INTO the turn only with this
+        // sign. Confirmed in-game (was steering the wrong way with the lean's sign).
+        float steerTarget = MathHelper.clamp(yawRate * STEER_PER_YAW_RATE, -MAX_STEER_DEG, MAX_STEER_DEG);
         this.prevBikeSteer = this.bikeSteer;
         this.bikeSteer += (steerTarget - this.bikeSteer) * LEAN_SMOOTHING;
 
