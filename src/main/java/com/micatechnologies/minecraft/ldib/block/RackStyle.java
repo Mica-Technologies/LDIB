@@ -15,24 +15,27 @@ package com.micatechnologies.minecraft.ldib.block;
 public enum RackStyle {
 
     // Slot(along, across, yaw): along = blocks from the master block's centre along the length axis
-    // (local +X); across = blocks off the centre line (local +Z), used to stagger bikes front/back so
-    // they don't clip; yaw = bike facing offset in degrees (0 = pointing across the rack, local +Z).
+    // (local +X); across = blocks off the centre line (local +Z); yaw = bike facing offset in degrees
+    // (0 = pointing across the rack, local +Z). Bikes are rendered near full size, so slots are spaced
+    // by roughly a bike's width (~0.6 block along X). A single 1x1 block cleanly fits two; racks that
+    // should hold more are made longer (see WAVE, a 3x1 holding five).
     HOOP("hoop", 1, new Slot[] {
-        new Slot(-0.18F, 0.0F, 0.0F), new Slot(0.18F, 0.0F, 0.0F)
+        new Slot(-0.3F, 0.0F, 0.0F), new Slot(0.3F, 0.0F, 0.0F)
     }),
     POST("post", 1, new Slot[] {
         new Slot(0.0F, 0.0F, 0.0F)
     }),
     GRID("grid", 1, new Slot[] {
-        new Slot(-0.28F, -0.12F, 0.0F), new Slot(0.0F, 0.12F, 0.0F), new Slot(0.28F, -0.12F, 0.0F)
+        new Slot(-0.3F, 0.0F, 0.0F), new Slot(0.3F, 0.0F, 0.0F)
     }),
     CLASSIC("classic", 1, new Slot[] {
-        new Slot(-0.28F, -0.12F, 0.0F), new Slot(0.0F, 0.12F, 0.0F), new Slot(0.28F, -0.12F, 0.0F)
+        new Slot(-0.3F, 0.0F, 0.0F), new Slot(0.3F, 0.0F, 0.0F)
     }),
-    // 3 blocks long, 5 bikes spread along it (blocks 0..2, centres at along 0, 1, 2), staggered.
+    // 3 blocks long, 5 bikes spread across the full span (blocks 0..2 cover local X in [-0.5, 2.5]),
+    // spaced ~0.7 apart so near-full-size bikes don't clip.
     WAVE("wave", 3, new Slot[] {
-        new Slot(0.0F, -0.12F, 0.0F), new Slot(0.5F, 0.12F, 0.0F), new Slot(1.0F, -0.12F, 0.0F),
-        new Slot(1.5F, 0.12F, 0.0F), new Slot(2.0F, -0.12F, 0.0F)
+        new Slot(-0.4F, 0.0F, 0.0F), new Slot(0.3F, 0.0F, 0.0F), new Slot(1.0F, 0.0F, 0.0F),
+        new Slot(1.7F, 0.0F, 0.0F), new Slot(2.4F, 0.0F, 0.0F)
     });
 
     /** One parking spot in the rack's local frame (see the class javadoc). */

@@ -18,8 +18,12 @@ import net.minecraft.util.EnumFacing;
  */
 public class TileEntityBikeRackRenderer extends TileEntitySpecialRenderer<TileEntityBikeRack> {
 
-    /** Parked bikes are drawn smaller than a ridden bike so several fit a rack without clipping. */
-    private static final float BIKE_SCALE = 0.6F;
+    /**
+     * Parked bikes are drawn close to a ridden bike's size (which is 1.0) so a bike on a rack doesn't
+     * look like a toy next to one out on the road — just a touch under full size for a little
+     * breathing room between neighbours. Slot spacing in {@link RackStyle} is matched to this.
+     */
+    private static final float BIKE_SCALE = 0.9F;
 
     private final ModelBike model = new ModelBike();
 
