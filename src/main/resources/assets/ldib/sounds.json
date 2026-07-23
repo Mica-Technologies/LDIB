@@ -1,0 +1,14 @@
+{
+  "ride": {
+    "category": "neutral",
+    "sounds": [
+      { "name": "ldib:bike_ride", "stream": false }
+    ]
+  },
+  "brake": {
+    "category": "neutral",
+    "sounds": [
+      { "name": "ldib:bike_brake" }
+    ]
+  }
+}

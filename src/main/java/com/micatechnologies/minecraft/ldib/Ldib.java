@@ -104,6 +104,11 @@ public class Ldib {
         event.getRegistry().registerAll(LdibRegistry.getItems().toArray(new Item[0]));
     }
 
+    @SubscribeEvent
+    public void registerSounds(RegistryEvent.Register<net.minecraft.util.SoundEvent> event) {
+        LdibSounds.register(event.getRegistry());
+    }
+
     @EventHandler
     public void init(FMLInitializationEvent event) {
         proxy.init(event);

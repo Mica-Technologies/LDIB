@@ -38,6 +38,8 @@ public class LdibClientProxy extends LdibCommonProxy {
         MinecraftForge.EVENT_BUS.register(new RideHud());
         MinecraftForge.EVENT_BUS.register(new com.micatechnologies.minecraft.ldib.client.hud.GrabPromptHud());
         MinecraftForge.EVENT_BUS.register(new com.micatechnologies.minecraft.ldib.client.RiderPoseHandler());
+        MinecraftForge.EVENT_BUS.register(
+            new com.micatechnologies.minecraft.ldib.client.sound.RideableSoundHandler());
         com.micatechnologies.minecraft.ldib.client.LdibKeyHandler.register();
         // ModelRegistryEvent is on the MOD bus; register this proxy to the Forge bus is not enough,
         // so subscribe it explicitly to receive the model-registration event.
