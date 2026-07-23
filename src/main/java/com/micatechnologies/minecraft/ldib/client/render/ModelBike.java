@@ -31,6 +31,7 @@ public class ModelBike extends ModelRideable {
      *  basket. A share e-bike carries both; a personal e-bike just the battery; a bicycle just the basket. */
     private final ModelRenderer battery;
     private final ModelRenderer basket;
+    private final ModelRenderer basketBracket;
     private final ModelRenderer bbLug;
     private final ModelRenderer htLug;
     private final ModelRenderer stLug;
@@ -83,12 +84,13 @@ public class ModelBike extends ModelRideable {
         saddle.addBox(-2.0F, -1.0F, -3.0F, 4, 1, 6);
         saddle.setRotationPoint(0.0F, -12.0F, 5.0F);
 
-        // Accessories. Battery: a 3 px pack straddling (burying) the 2 px down tube. Basket: a 5x4x5
-        // box mounted on the front of the handlebar — it wraps the handlebar centre (y −14..−10 fully
-        // contains the y −13..−11 bar, so it reads as attached, not floating) and extends forward to
-        // z −11, staying above the front wheel and clear of the headlight housing (y −9..−6 below it).
+        // Accessories. Battery: a 3 px pack straddling (burying) the 2 px down tube. Basket: a solid
+        // 5x4x4 box just in FRONT of the handlebar (rear wall at z −8, clear of the z −7..−5 bar) so
+        // that wall renders and you can't see through it from first person; a short 2 px bracket buries
+        // into both the basket and the handlebar so it reads as mounted, not floating.
         battery = hasBattery ? box(-1.5F, -6.0F, -4.0F, 3, 5, 3, METAL_U, METAL_V) : null;
-        basket = hasBasket ? box(-2.5F, -14.0F, -11.0F, 5, 4, 5, METAL_U, METAL_V) : null;
+        basket = hasBasket ? box(-2.5F, -13.0F, -12.0F, 5, 4, 4, METAL_U, METAL_V) : null;
+        basketBracket = hasBasket ? box(-1.0F, -12.0F, -9.0F, 2, 2, 4, METAL_U, METAL_V) : null;
 
         // Joint lugs bury the overlapping tube ends at each convergence (see ModelRideable).
         bbLug = lug(2.0F, 0.0F, 3, FRAME_U, FRAME_V);   // bottom bracket: down/seat/chain
@@ -98,9 +100,12 @@ public class ModelBike extends ModelRideable {
 
         // Lights = permanent grey housing (drawn in render) + emissive lens + additive glow (drawn in
         // renderLights). Headlight at the front (−z), brake at the rear (+z).
-        headHousing = box(-1.5F, -9.0F, -11.0F, 3, 3, 2);
-        headLens = box(-1.0F, -8.5F, -11.5F, 2, 2, 1);
-        headGlow = box(-3.0F, -10.0F, -13.0F, 6, 6, 3);
+        // Headlight at head-tube height normally, but dropped to the fork on a basket bike so the
+        // basket has the front to itself.
+        float headY = hasBasket ? -3.0F : -9.0F;
+        headHousing = box(-1.5F, headY, -11.0F, 3, 3, 2);
+        headLens = box(-1.0F, headY + 0.5F, -11.5F, 2, 2, 1);
+        headGlow = box(-3.0F, headY - 1.0F, -13.0F, 6, 6, 3);
 
         brakeHousing = box(-1.5F, -10.0F, 8.0F, 3, 3, 2);
         brakeLens = box(-1.0F, -9.5F, 10.0F, 2, 2, 1);
@@ -130,6 +135,7 @@ public class ModelBike extends ModelRideable {
         }
         if (basket != null) {
             basket.render(scale);
+            basketBracket.render(scale);
         }
         // Light housings are electric hardware — only the e-bike has them; the plain bicycle shows none
         // (which also frees the front for its basket). The lenses/glow are gated the same way by
