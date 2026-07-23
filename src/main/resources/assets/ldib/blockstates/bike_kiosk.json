@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": { "model": "ldib:bike_kiosk" },
+    "facing=south": { "model": "ldib:bike_kiosk", "y": 180 },
+    "facing=east": { "model": "ldib:bike_kiosk", "y": 90 },
+    "facing=west": { "model": "ldib:bike_kiosk", "y": 270 }
+  }
+}

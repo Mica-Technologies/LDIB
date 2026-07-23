@@ -22,6 +22,16 @@ public final class LdibConfig {
 
     public static final String CATEGORY_PHYSICS = "physics";
     public static final String CATEGORY_CLIENT = "client";
+    public static final String CATEGORY_BIKESHARE = "bikeshare";
+
+    /** Radius (blocks) around a kiosk within which docks belong to its station. */
+    public static int shareStationRadius = 8;
+
+    /** Cost per minute of a bike-share rental, in the economy's currency. 0 = free (default). */
+    public static double shareRatePerMinute = 0.0D;
+
+    /** Whether to bill rentals through an installed economy mod (SUM) when {@link #shareRatePerMinute} &gt; 0. */
+    public static boolean shareUseEconomy = true;
 
     /** Top forward speed under pedal power, blocks/second. */
     public static double maxSpeed = 7.0D;
@@ -180,6 +190,16 @@ public final class LdibConfig {
 
         enableRideHud = config.get(CATEGORY_CLIENT, "enableRideHud", enableRideHud,
             "Show the live speed readout while riding.").getBoolean();
+
+        config.addCustomCategoryComment(CATEGORY_BIKESHARE,
+            "Bike-share stations. A kiosk plus the docks within its radius form a station; rentals can "
+                + "be billed per minute through an installed economy mod (SUM) — which stays optional.");
+        shareStationRadius = config.get(CATEGORY_BIKESHARE, "stationRadius", shareStationRadius,
+            "Radius (blocks) around a kiosk within which docks belong to its station.", 1, 64).getInt();
+        shareRatePerMinute = config.get(CATEGORY_BIKESHARE, "ratePerMinute", shareRatePerMinute,
+            "Cost per minute of a rental, in the economy's currency. 0 = free.", 0.0D, 100000.0D).getDouble();
+        shareUseEconomy = config.get(CATEGORY_BIKESHARE, "useEconomy", shareUseEconomy,
+            "Bill rentals through an installed economy mod (SUM) when ratePerMinute > 0.").getBoolean();
 
         if (config.hasChanged()) {
             config.save();

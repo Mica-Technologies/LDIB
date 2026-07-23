@@ -1,5 +1,6 @@
 package com.micatechnologies.minecraft.ldib;
 
+import net.minecraft.util.math.BlockPos;
 import net.minecraftforge.fml.common.event.FMLInitializationEvent;
 import net.minecraftforge.fml.common.event.FMLPostInitializationEvent;
 import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
@@ -20,5 +21,10 @@ public class LdibCommonProxy implements LdibProxy {
 
     @Override
     public void postInit(FMLPostInitializationEvent event) {
+    }
+
+    @Override
+    public void openKioskGui(BlockPos kiosk, boolean hasSession, long startTick) {
+        // No GUI on a dedicated server.
     }
 }

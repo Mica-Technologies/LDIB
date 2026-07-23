@@ -156,12 +156,7 @@ public class BlockBikeDock extends Block {
                 status(player, "This dock is occupied. Return your bike at a free dock.");
                 return true;
             }
-            // Check out: undock the bike and spawn it in front of the dock.
-            BikeVariant variant = dock.undock();
-            spawnInFront(world, pos, state, variant);
-            network.bikeCheckedOut();
-            status(player, "Checked out a bike. (" + network.available() + " available in the network)");
-            return true;
+            return checkOutFromDock(world, pos, state, player, dock, network);
         }
 
         // Dock is free.
@@ -175,12 +170,90 @@ public class BlockBikeDock extends Block {
                 held.shrink(1);
             }
             network.bikeReturned();
-            status(player, "Returned your bike to the dock. ("
-                + network.available() + " available in the network)");
+            completeSessionOnReturn(world, player, network);
             return true;
         }
 
         status(player, "This dock is empty. Ride or carry a bike here to return it.");
+        return true;
+    }
+
+    /**
+     * Take a bike out of an occupied dock. At a station (a kiosk is nearby) this requires an active
+     * rental checked out at that station, one bike per session; a standalone dock (no kiosk) still
+     * allows a quick self-serve check-out.
+     */
+    private boolean checkOutFromDock(World world, BlockPos pos, IBlockState state, EntityPlayer player,
+                                     TileEntityBikeDock dock, BikeShareNetwork network) {
+        BikeShareNetwork.Session session = network.getSession(player.getUniqueID());
+        if (session != null) {
+            if (session.bikeTaken) {
+                status(player, "You already have a bike out — return it before taking another.");
+                return true;
+            }
+            if (!BikeShareStation.isKiosk(world, session.kiosk)
+                || !BikeShareStation.withinStation(session.kiosk, pos)) {
+                status(player, "Take your bike from a dock at the station where you checked out.");
+                return true;
+            }
+            BikeVariant variant = dock.undock();
+            spawnInFront(world, pos, state, variant);
+            network.bikeCheckedOut();
+            network.markBikeTaken(player.getUniqueID());
+            status(player, "Enjoy your ride — return it at any station dock when you're done.");
+            return true;
+        }
+        // No session: station docks send you to the kiosk; standalone docks self-serve.
+        if (BikeShareStation.findKioskNear(world, pos) != null) {
+            status(player, "Check out at the station kiosk first.");
+            return true;
+        }
+        BikeVariant variant = dock.undock();
+        spawnInFront(world, pos, state, variant);
+        network.bikeCheckedOut();
+        status(player, "Checked out a bike. (" + network.available() + " available in the network)");
+        return true;
+    }
+
+    /** If the returning player had an open rental, close it, bill for the minutes, and chat them. */
+    private static void completeSessionOnReturn(World world, EntityPlayer player, BikeShareNetwork network) {
+        BikeShareNetwork.Session session = network.endSession(player.getUniqueID());
+        if (session == null) {
+            status(player, "Returned your bike to the dock. ("
+                + network.available() + " available in the network)");
+            return;
+        }
+        long elapsed = Math.max(0L, world.getTotalWorldTime() - session.startTick);
+        int minutes = (int) Math.max(1L, (elapsed + 1199L) / 1200L); // ceil to whole minutes, min 1
+        double charged = com.micatechnologies.minecraft.ldib.api.BikeShareBilling.active().charge(player, minutes);
+        String message = "Your bike-share session is complete — " + minutes
+            + (minutes == 1 ? " minute." : " minutes.");
+        if (charged > 0.0D) {
+            message += String.format(" You were charged %.2f.", charged);
+        }
+        player.sendMessage(new TextComponentString(message));
+    }
+
+    /**
+     * Dock the bike {@code player} is riding into this dock, if it's free — the "ride up and park"
+     * path called from {@link EntityBike} when the click landed on the bike rather than the dock.
+     * Returns true if the bike was docked.
+     */
+    public boolean tryDockRidden(World world, BlockPos pos, EntityPlayer player) {
+        if (world.isRemote || !(player.getRidingEntity() instanceof EntityBike)) {
+            return false;
+        }
+        TileEntityBikeDock dock = dockTE(world, pos);
+        if (dock == null || dock.isOccupied()) {
+            return false;
+        }
+        EntityBike bike = (EntityBike) player.getRidingEntity();
+        dock.dock(bike.variant());
+        bike.removePassengers();
+        bike.setDead();
+        BikeShareNetwork network = BikeShareNetwork.get(world);
+        network.bikeReturned();
+        completeSessionOnReturn(world, player, network);
         return true;
     }
 

@@ -56,6 +56,14 @@ public class LdibClientProxy extends LdibCommonProxy {
             bindModel(Item.getItemFromBlock(rack));
         }
         bindModel(Item.getItemFromBlock(com.micatechnologies.minecraft.ldib.block.LdibBlocks.dock));
+        bindModel(Item.getItemFromBlock(com.micatechnologies.minecraft.ldib.block.LdibBlocks.kiosk));
+    }
+
+    @Override
+    public void openKioskGui(net.minecraft.util.math.BlockPos kiosk, boolean hasSession, long startTick) {
+        net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
+        mc.addScheduledTask(() -> mc.displayGuiScreen(
+            new com.micatechnologies.minecraft.ldib.client.gui.GuiKiosk(kiosk, hasSession, startTick)));
     }
 
     private static void bindModel(Item item) {

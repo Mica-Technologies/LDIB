@@ -22,6 +22,9 @@ public final class LdibBlocks {
     /** The bike-share dock (Phase 7.1) — public infrastructure, counterpart to the private racks. */
     public static BlockBikeDock dock;
 
+    /** The bike-share station kiosk — the rental check-out point for a cluster of docks. */
+    public static BlockBikeKiosk kiosk;
+
     private LdibBlocks() {
         throw new AssertionError("No instances.");
     }
@@ -34,6 +37,8 @@ public final class LdibBlocks {
         }
         dock = LdibRegistry.addBlock(new BlockBikeDock());
         registerItemBlock(dock);
+        kiosk = LdibRegistry.addBlock(new BlockBikeKiosk());
+        registerItemBlock(kiosk);
     }
 
     private static void registerItemBlock(net.minecraft.block.Block block) {

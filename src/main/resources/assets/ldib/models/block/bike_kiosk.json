@@ -1,0 +1,48 @@
+{
+  "textures": {
+    "particle": "ldib:blocks/kiosk",
+    "kiosk": "ldib:blocks/kiosk",
+    "screen": "ldib:blocks/kiosk_screen"
+  },
+  "elements": [
+    {
+      "__comment": "base",
+      "from": [5, 0, 5],
+      "to": [11, 2, 11],
+      "faces": {
+        "down": { "texture": "#kiosk" },
+        "up": { "texture": "#kiosk" },
+        "north": { "texture": "#kiosk" },
+        "south": { "texture": "#kiosk" },
+        "west": { "texture": "#kiosk" },
+        "east": { "texture": "#kiosk" }
+      }
+    },
+    {
+      "__comment": "body pillar",
+      "from": [5, 2, 6],
+      "to": [11, 15, 10],
+      "faces": {
+        "down": { "texture": "#kiosk" },
+        "up": { "texture": "#kiosk" },
+        "north": { "texture": "#screen" },
+        "south": { "texture": "#kiosk" },
+        "west": { "texture": "#kiosk" },
+        "east": { "texture": "#kiosk" }
+      }
+    },
+    {
+      "__comment": "slanted canopy top",
+      "from": [4, 15, 5],
+      "to": [12, 17, 11],
+      "faces": {
+        "down": { "texture": "#kiosk" },
+        "up": { "texture": "#kiosk" },
+        "north": { "texture": "#kiosk" },
+        "south": { "texture": "#kiosk" },
+        "west": { "texture": "#kiosk" },
+        "east": { "texture": "#kiosk" }
+      }
+    }
+  ]
+}

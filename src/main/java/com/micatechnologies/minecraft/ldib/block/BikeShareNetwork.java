@@ -1,6 +1,11 @@
 package com.micatechnologies.minecraft.ldib.block;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 import net.minecraft.nbt.NBTTagCompound;
+import net.minecraft.nbt.NBTTagList;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraft.world.storage.MapStorage;
 import net.minecraft.world.storage.WorldSavedData;
@@ -28,6 +33,27 @@ public class BikeShareNetwork extends WorldSavedData {
 
     /** How many dock points exist in this world. Informational for now; a fleet cap would use it. */
     private int dockCount;
+
+    /**
+     * An active rental: the player, when it started (for per-minute billing), the kiosk they checked
+     * out at (its station is where they may take a bike), and whether they've taken their bike yet.
+     */
+    public static final class Session {
+        public final UUID player;
+        public final long startTick;
+        public final BlockPos kiosk;
+        public boolean bikeTaken;
+
+        public Session(UUID player, long startTick, BlockPos kiosk, boolean bikeTaken) {
+            this.player = player;
+            this.startTick = startTick;
+            this.kiosk = kiosk;
+            this.bikeTaken = bikeTaken;
+        }
+    }
+
+    /** Active rentals by player. A player has at most one open session. */
+    private final Map<UUID, Session> sessions = new HashMap<>();
 
     // WorldSavedData is instantiated reflectively via its (String) constructor by getOrLoadData.
     public BikeShareNetwork(String name) {
@@ -82,18 +108,72 @@ public class BikeShareNetwork extends WorldSavedData {
         return dockCount;
     }
 
+    // --- Rental sessions ---------------------------------------------------------------------
+
+    /** Start a rental for {@code player}, checked out at {@code kiosk} at {@code startTick}. */
+    public void startSession(UUID player, BlockPos kiosk, long startTick) {
+        sessions.put(player, new Session(player, startTick, kiosk, false));
+        markDirty();
+    }
+
+    /** {@code player}'s active rental, or {@code null} if they have none. */
+    public Session getSession(UUID player) {
+        return sessions.get(player);
+    }
+
+    public boolean hasSession(UUID player) {
+        return sessions.containsKey(player);
+    }
+
+    /** Record that the player has taken their one bike out of a dock this session. */
+    public void markBikeTaken(UUID player) {
+        Session s = sessions.get(player);
+        if (s != null) {
+            s.bikeTaken = true;
+            markDirty();
+        }
+    }
+
+    /** End {@code player}'s rental and return it (for billing), or {@code null} if none was open. */
+    public Session endSession(UUID player) {
+        Session s = sessions.remove(player);
+        if (s != null) {
+            markDirty();
+        }
+        return s;
+    }
+
     // --- Persistence -------------------------------------------------------------------------
 
     @Override
     public void readFromNBT(NBTTagCompound nbt) {
         this.available = nbt.getInteger("Available");
         this.dockCount = nbt.getInteger("DockCount");
+        sessions.clear();
+        NBTTagList list = nbt.getTagList("Sessions", 10); // 10 = compound
+        for (int i = 0; i < list.tagCount(); i++) {
+            NBTTagCompound tag = list.getCompoundTagAt(i);
+            UUID player = tag.getUniqueId("Player");
+            BlockPos kiosk = BlockPos.fromLong(tag.getLong("Kiosk"));
+            sessions.put(player,
+                new Session(player, tag.getLong("Start"), kiosk, tag.getBoolean("BikeTaken")));
+        }
     }
 
     @Override
     public NBTTagCompound writeToNBT(NBTTagCompound nbt) {
         nbt.setInteger("Available", this.available);
         nbt.setInteger("DockCount", this.dockCount);
+        NBTTagList list = new NBTTagList();
+        for (Session s : sessions.values()) {
+            NBTTagCompound tag = new NBTTagCompound();
+            tag.setUniqueId("Player", s.player);
+            tag.setLong("Start", s.startTick);
+            tag.setLong("Kiosk", s.kiosk.toLong());
+            tag.setBoolean("BikeTaken", s.bikeTaken);
+            list.appendTag(tag);
+        }
+        nbt.setTag("Sessions", list);
         return nbt;
     }
 }

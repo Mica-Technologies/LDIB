@@ -47,7 +47,9 @@ import org.apache.logging.log4j.Logger;
 @Mod(modid = LdibConstants.MOD_NAMESPACE,
      version = LdibConstants.MOD_VERSION,
      name = LdibConstants.MOD_NAME,
-     acceptedMinecraftVersions = "[1.12.2]")
+     acceptedMinecraftVersions = "[1.12.2]",
+     // SUM is an OPTIONAL economy integration for paid bike-share — load-order only, never required.
+     dependencies = "after:sum")
 public class Ldib {
 
     public static final Logger LOGGER = LogManager.getLogger(LdibConstants.MOD_NAMESPACE);
@@ -66,6 +68,7 @@ public class Ldib {
     public void preInit(FMLPreInitializationEvent event) {
         LdibConfig.init(event.getSuggestedConfigurationFile());
         MinecraftForge.EVENT_BUS.register(this);
+        com.micatechnologies.minecraft.ldib.network.LdibNetwork.init();
         LdibBlocks.init();
         LdibItems.init();
         GameRegistry.registerTileEntity(TileEntityBikeRack.class,
