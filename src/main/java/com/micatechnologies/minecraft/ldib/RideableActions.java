@@ -3,6 +3,8 @@ package com.micatechnologies.minecraft.ldib;
 import com.micatechnologies.minecraft.ldib.block.BlockBikeDock;
 import com.micatechnologies.minecraft.ldib.block.BlockBikeRack;
 import com.micatechnologies.minecraft.ldib.entity.EntityBike;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import net.minecraft.block.Block;
 import net.minecraft.entity.player.EntityPlayer;
@@ -13,24 +15,23 @@ import net.minecraft.world.World;
 
 /**
  * The forgiving "grab / dock" action behind the keybind (see {@code PacketGrabBike}). One key does the
- * intuitive thing from context, so players don't have to discover right-click gestures:
+ * intuitive thing from context, whether you're riding a bike or standing next to a placed one:
  *
  * <ul>
- *   <li><b>Riding, near a rack or dock</b> → park the bike there (lock to the rack / clip into the
- *       dock) — you just have to be <i>near</i> it, no precise aiming.</li>
- *   <li><b>Riding, not near a station</b> → hop off and pocket the bike as an item.</li>
- *   <li><b>On foot, looking at or standing near a placed bike</b> → pick it up into your inventory.</li>
+ *   <li><b>The bike (ridden, or the nearest placed one) is near a rack/dock</b> → return/lock it there
+ *       — you just have to be near the station, no precise aiming or right-clicking.</li>
+ *   <li><b>No station near the bike</b> → pick it up into your inventory (hopping off if you're on it).</li>
  * </ul>
  *
- * <p>Server-authoritative. Reuses {@link BlockBikeRack#tryLockRidden}/{@link BlockBikeDock#tryDockRidden}
- * for the actual park, and {@link EntityBike#giveAsItem} for the pick-up.</p>
+ * <p>Server-authoritative. Reuses {@link BlockBikeRack#tryLockBike}/{@link BlockBikeDock#tryDockBike}
+ * for the park (they work on any bike, ridden or placed) and {@link EntityBike#giveAsItem} for pick-up.</p>
  */
 public final class RideableActions {
 
-    /** How close (blocks) a rack/dock must be to park at it when you press the key while riding. */
-    private static final double DOCK_RADIUS = 3.0D;
-    /** How close a placed bike must be to grab it on foot. */
-    private static final double GRAB_RADIUS = 3.0D;
+    /** How close (blocks) a rack/dock must be to the bike to return/park it there. */
+    private static final double DOCK_RADIUS = 4.0D;
+    /** How close a placed bike must be to the player to act on it when on foot. */
+    private static final double GRAB_RADIUS = 3.5D;
 
     private RideableActions() {
         throw new AssertionError("No instances.");
@@ -42,68 +43,59 @@ public final class RideableActions {
         if (world.isRemote) {
             return;
         }
-        if (player.getRidingEntity() instanceof EntityBike) {
-            EntityBike bike = (EntityBike) player.getRidingEntity();
-            if (parkAtNearestStation(world, player)) {
-                return;
-            }
-            bike.giveAsItem(player);
-            bike.setDead();
-            status(player, "Picked up your bike.");
+        boolean riding = player.getRidingEntity() instanceof EntityBike;
+        EntityBike bike = riding ? (EntityBike) player.getRidingEntity() : nearestPlacedBike(world, player);
+        if (bike == null) {
+            status(player, "Nothing here — look at or stand near a bike, or ride one up to a rack or dock.");
             return;
         }
-        EntityBike target = nearestPlacedBike(world, player);
-        if (target != null) {
-            target.giveAsItem(player);
-            target.setDead();
-            status(player, "Picked up the bike.");
+        // First choice: return/park the bike at the nearest rack or dock.
+        if (parkAtNearestStation(world, player, bike)) {
             return;
         }
-        status(player, "Nothing to grab — look at a placed bike, or ride one up to a rack or dock.");
+        // No station near the bike → pocket it.
+        bike.giveAsItem(player);
+        bike.setDead();
+        status(player, riding ? "Picked up your bike." : "Picked up the bike.");
     }
 
-    /** Try to park the ridden bike at the nearest rack/dock within {@link #DOCK_RADIUS}; true if parked. */
-    private static boolean parkAtNearestStation(World world, EntityPlayer player) {
-        BlockPos origin = new BlockPos(player.posX, player.posY, player.posZ);
+    /** Return/lock {@code bike} at the nearest available rack/dock within {@link #DOCK_RADIUS}. */
+    private static boolean parkAtNearestStation(World world, EntityPlayer player, EntityBike bike) {
+        List<BlockPos> stations = new ArrayList<>();
         int r = (int) Math.ceil(DOCK_RADIUS);
-        BlockPos best = null;
-        double bestSq = DOCK_RADIUS * DOCK_RADIUS;
+        BlockPos origin = new BlockPos(bike.posX, bike.posY, bike.posZ);
         BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos();
         for (int dx = -r; dx <= r; dx++) {
             for (int dy = -r; dy <= r; dy++) {
                 for (int dz = -r; dz <= r; dz++) {
                     p.setPos(origin.getX() + dx, origin.getY() + dy, origin.getZ() + dz);
                     Block block = world.getBlockState(p).getBlock();
-                    if (!(block instanceof BlockBikeDock) && !(block instanceof BlockBikeRack)) {
-                        continue;
-                    }
-                    double sq = player.getDistanceSq(p);
-                    if (sq <= bestSq) {
-                        // Only accept it if it can actually take the bike (free dock / rack with room).
-                        BlockPos here = p.toImmutable();
-                        if (parkAt(world, here, player, block)) {
-                            return true;
-                        }
-                        best = here; // remembered only to note a station was near even if full
+                    if ((block instanceof BlockBikeDock || block instanceof BlockBikeRack)
+                        && p.distanceSq(bike.posX, bike.posY, bike.posZ) <= DOCK_RADIUS * DOCK_RADIUS) {
+                        stations.add(p.toImmutable());
                     }
                 }
             }
         }
-        if (best != null) {
-            status(player, "That station is full.");
-            return true; // handled (don't fall through to pocketing the bike)
+        if (stations.isEmpty()) {
+            return false;
         }
-        return false;
-    }
-
-    private static boolean parkAt(World world, BlockPos pos, EntityPlayer player, Block block) {
-        if (block instanceof BlockBikeDock) {
-            return ((BlockBikeDock) block).tryDockRidden(world, pos, player);
+        // Try nearest-first; tryDock/LockBike return false when occupied/full, so we skip to the next.
+        stations.sort(Comparator.comparingDouble(s -> s.distanceSq(bike.posX, bike.posY, bike.posZ)));
+        for (BlockPos pos : stations) {
+            Block block = world.getBlockState(pos).getBlock();
+            if (block instanceof BlockBikeDock
+                && ((BlockBikeDock) block).tryDockBike(world, pos, bike, player)) {
+                return true;
+            }
+            if (block instanceof BlockBikeRack
+                && ((BlockBikeRack) block).tryLockBike(world, pos, bike, player)) {
+                return true;
+            }
         }
-        if (block instanceof BlockBikeRack) {
-            return ((BlockBikeRack) block).tryLockRidden(world, pos, player);
-        }
-        return false;
+        // A station was near but had no room; report it and don't fall through to pocketing.
+        status(player, "The nearest rack or dock is full.");
+        return true;
     }
 
     /** The nearest un-ridden placed bike within {@link #GRAB_RADIUS} of {@code player}, or null. */

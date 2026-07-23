@@ -212,8 +212,9 @@ public class BlockBikeRack extends Block {
      * path called from {@link EntityBike} when the click landed on the bike rather than the rack.
      * Returns true if the bike was locked.
      */
-    public boolean tryLockRidden(World world, BlockPos pos, EntityPlayer player) {
-        if (world.isRemote || !(player.getRidingEntity() instanceof EntityBike)) {
+    /** Lock a specific bike into this rack (ridden or already placed) on {@code player}'s behalf. */
+    public boolean tryLockBike(World world, BlockPos pos, EntityBike bike, EntityPlayer player) {
+        if (world.isRemote || bike == null || bike.isDead) {
             return false;
         }
         IBlockState state = world.getBlockState(pos);
@@ -221,14 +222,21 @@ public class BlockBikeRack extends Block {
         if (rack == null || rack.isFull()) {
             return false;
         }
-        EntityBike bike = (EntityBike) player.getRidingEntity();
         int slot = rack.firstFreeSlot();
         rack.lock(slot, player.getUniqueID(), player.getName(), bike.variant());
-        bike.removePassengers();
+        if (bike.isBeingRidden()) {
+            bike.removePassengers();
+        }
         bike.setDead();
         status(player, "Locked your bike to the rack. Only you can unlock it. ("
             + rack.lockedCount() + "/" + rack.capacity() + ")");
         return true;
+    }
+
+    /** The bike {@code player} is riding, locked here — the "ride up and right-click" convenience. */
+    public boolean tryLockRidden(World world, BlockPos pos, EntityPlayer player) {
+        return player.getRidingEntity() instanceof EntityBike
+            && tryLockBike(world, pos, (EntityBike) player.getRidingEntity(), player);
     }
 
     /** Breaking any part breaks the whole rack and drops every locked bike (exactly once). */

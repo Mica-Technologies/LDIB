@@ -239,22 +239,30 @@ public class BlockBikeDock extends Block {
      * path called from {@link EntityBike} when the click landed on the bike rather than the dock.
      * Returns true if the bike was docked.
      */
-    public boolean tryDockRidden(World world, BlockPos pos, EntityPlayer player) {
-        if (world.isRemote || !(player.getRidingEntity() instanceof EntityBike)) {
+    /** Clip a specific bike into this dock (ridden or already placed) on {@code player}'s behalf. */
+    public boolean tryDockBike(World world, BlockPos pos, EntityBike bike, EntityPlayer player) {
+        if (world.isRemote || bike == null || bike.isDead) {
             return false;
         }
         TileEntityBikeDock dock = dockTE(world, pos);
         if (dock == null || dock.isOccupied()) {
             return false;
         }
-        EntityBike bike = (EntityBike) player.getRidingEntity();
         dock.dock(bike.variant());
-        bike.removePassengers();
+        if (bike.isBeingRidden()) {
+            bike.removePassengers();
+        }
         bike.setDead();
         BikeShareNetwork network = BikeShareNetwork.get(world);
         network.bikeReturned();
         completeSessionOnReturn(world, player, network);
         return true;
+    }
+
+    /** The bike {@code player} is riding, docked here — the "ride up and right-click" convenience. */
+    public boolean tryDockRidden(World world, BlockPos pos, EntityPlayer player) {
+        return player.getRidingEntity() instanceof EntityBike
+            && tryDockBike(world, pos, (EntityBike) player.getRidingEntity(), player);
     }
 
     /** Spawn a checked-out bike in the block in front of the dock, pointing out along its facing. */
