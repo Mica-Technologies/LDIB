@@ -1,6 +1,18 @@
 {
   "variants": {
-    "normal": {
+    "facing=south": {
+      "model": "ldib:bike_rack_wave",
+      "y": 90
+    },
+    "facing=west": {
+      "model": "ldib:bike_rack_wave",
+      "y": 180
+    },
+    "facing=north": {
+      "model": "ldib:bike_rack_wave",
+      "y": 270
+    },
+    "facing=east": {
       "model": "ldib:bike_rack_wave"
     }
   }

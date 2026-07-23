@@ -4,23 +4,46 @@ import com.micatechnologies.minecraft.ldib.block.RackStyle;
 import com.micatechnologies.minecraft.ldib.block.TileEntityBikeRack;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.tileentity.TileEntitySpecialRenderer;
+import net.minecraft.util.EnumFacing;
 
 /**
  * Draws the bikes locked into a {@link TileEntityBikeRack} at their slot positions, so players can
- * see where their bike is parked. Client-only — reached solely from {@code LdibClientProxy}.
+ * see where their bike is parked — spread along the whole (possibly multi-block) rack. Client-only.
  *
- * <p>Each occupied slot renders a {@link ModelBike} (with the locked bike's variant texture) standing
- * on the ground at the slot, using the same wheels-on-ground transform as the ridden-bike renderer.</p>
+ * <p>The rack's slots are defined in a local frame (local +X = along the length, local +Z = across);
+ * this rotates that frame by the block's facing so the layout follows however the rack was placed,
+ * then draws each locked bike scaled down with the same wheels-on-ground transform as
+ * {@link RenderBike}. The frame rotation is the negative of the blockstate's y-rotation for that
+ * facing (blockstate y is clockwise; {@code GlStateManager.rotate} is counter-clockwise).</p>
  */
 public class TileEntityBikeRackRenderer extends TileEntitySpecialRenderer<TileEntityBikeRack> {
 
+    /** Parked bikes are drawn smaller than a ridden bike so several fit a rack without clipping. */
+    private static final float BIKE_SCALE = 0.6F;
+
     private final ModelBike model = new ModelBike();
+
+    /** Rotation that maps the local +X axis onto the block's facing (see class javadoc). */
+    private static float frameRotation(EnumFacing facing) {
+        switch (facing) {
+            case SOUTH: return -90.0F;
+            case WEST:  return -180.0F;
+            case NORTH: return -270.0F;
+            case EAST:
+            default:    return 0.0F;
+        }
+    }
 
     @Override
     public void render(TileEntityBikeRack rack, double x, double y, double z, float partialTicks,
                        int destroyStage, float alpha) {
         RackStyle.Slot[] slots = rack.style().slots();
         this.model.setWheelSpin(0.0F);
+
+        GlStateManager.pushMatrix();
+        // Centre on the master block, at ground level, then rotate into the rack's local frame.
+        GlStateManager.translate(x + 0.5D, y, z + 0.5D);
+        GlStateManager.rotate(frameRotation(rack.facing()), 0.0F, 1.0F, 0.0F);
 
         for (int i = 0; i < slots.length; i++) {
             TileEntityBikeRack.LockedBike bike = rack.getSlot(i);
@@ -30,10 +53,10 @@ public class TileEntityBikeRackRenderer extends TileEntitySpecialRenderer<TileEn
             RackStyle.Slot slot = slots[i];
 
             GlStateManager.pushMatrix();
-            // Same wheels-on-ground transform as RenderBike, applied at the slot within the block.
-            GlStateManager.translate(x + slot.x, y + 0.375D, z + slot.z);
+            // Local: +X along the length, +Z across it. Ground lift scales with the bike.
+            GlStateManager.translate(slot.along, 0.375D * BIKE_SCALE, slot.across);
             GlStateManager.rotate(180.0F - slot.yaw, 0.0F, 1.0F, 0.0F);
-            GlStateManager.scale(-1.0F, -1.0F, 1.0F);
+            GlStateManager.scale(-BIKE_SCALE, -BIKE_SCALE, BIKE_SCALE);
             GlStateManager.enableRescaleNormal();
             GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
 
@@ -42,5 +65,6 @@ public class TileEntityBikeRackRenderer extends TileEntitySpecialRenderer<TileEn
 
             GlStateManager.popMatrix();
         }
+        GlStateManager.popMatrix();
     }
 }

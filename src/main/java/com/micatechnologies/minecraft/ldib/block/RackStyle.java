@@ -1,56 +1,60 @@
 package com.micatechnologies.minecraft.ldib.block;
 
 /**
- * The visual styles of bike rack. Each becomes its own {@link BlockBikeRack} registration sharing
- * one class and one {@link TileEntityBikeRack} — separate blocks (not a metadata property) is the
- * idiomatic 1.12.2 way to give each style its own static model, and it avoids the block-state ceiling.
+ * The visual styles of bike rack. Each is its own {@link BlockBikeRack} registration sharing one
+ * class and one {@link TileEntityBikeRack}.
  *
- * <p>Each style also defines how many bikes it holds and <b>where</b> each one sits ({@link #slots}),
- * so the tile-entity renderer can draw the locked bikes on the rack. Capacity is a property of the
- * shape: a single hoop takes two bikes, a lone post one, a long toast rack several.</p>
+ * <p>A rack can span more than one block: {@link #length} is how many blocks it occupies along its
+ * facing (its length axis), so a wave rack is a 3×1 structure holding five bikes rather than a
+ * cramped 1×1. Placing the master block fills in the extension blocks; breaking any part breaks the
+ * whole rack. {@link #slots} give each bike's parking spot in the rack's <b>local frame</b>: local +X
+ * runs along the length (the extension axis, matching the block models, which are drawn spanning X),
+ * local +Z is across it (the direction a parked bike points). The tile-entity renderer rotates that
+ * frame by the block's facing.</p>
  */
 public enum RackStyle {
 
-    // Slot positions are block fractions (x, z in 0..1) plus the bike's facing yaw in degrees.
-    // Bikes park perpendicular to the rack rail (length along Z), so they overhang front/back — a
-    // parked bike is ~1 block long. Capacity is slots.length.
-    HOOP("hoop", new Slot[] {
-        new Slot(0.35F, 0.5F, 0.0F), new Slot(0.65F, 0.5F, 0.0F)
+    // Slot(along, across, yaw): along = blocks from the master block's centre along the length axis
+    // (local +X); across = blocks off the centre line (local +Z), used to stagger bikes front/back so
+    // they don't clip; yaw = bike facing offset in degrees (0 = pointing across the rack, local +Z).
+    HOOP("hoop", 1, new Slot[] {
+        new Slot(-0.18F, 0.0F, 0.0F), new Slot(0.18F, 0.0F, 0.0F)
     }),
-    POST("post", new Slot[] {
-        new Slot(0.5F, 0.5F, 0.0F)
+    POST("post", 1, new Slot[] {
+        new Slot(0.0F, 0.0F, 0.0F)
     }),
-    GRID("grid", new Slot[] {
-        new Slot(0.22F, 0.5F, 0.0F), new Slot(0.41F, 0.5F, 0.0F),
-        new Slot(0.59F, 0.5F, 0.0F), new Slot(0.78F, 0.5F, 0.0F)
+    GRID("grid", 1, new Slot[] {
+        new Slot(-0.28F, -0.12F, 0.0F), new Slot(0.0F, 0.12F, 0.0F), new Slot(0.28F, -0.12F, 0.0F)
     }),
-    CLASSIC("classic", new Slot[] {
-        new Slot(0.13F, 0.5F, 0.0F), new Slot(0.25F, 0.5F, 0.0F),
-        new Slot(0.44F, 0.5F, 0.0F), new Slot(0.56F, 0.5F, 0.0F),
-        new Slot(0.75F, 0.5F, 0.0F), new Slot(0.87F, 0.5F, 0.0F)
+    CLASSIC("classic", 1, new Slot[] {
+        new Slot(-0.28F, -0.12F, 0.0F), new Slot(0.0F, 0.12F, 0.0F), new Slot(0.28F, -0.12F, 0.0F)
     }),
-    WAVE("wave", new Slot[] {
-        new Slot(0.25F, 0.5F, 0.0F), new Slot(0.5F, 0.5F, 0.0F), new Slot(0.75F, 0.5F, 0.0F)
+    // 3 blocks long, 5 bikes spread along it (blocks 0..2, centres at along 0, 1, 2), staggered.
+    WAVE("wave", 3, new Slot[] {
+        new Slot(0.0F, -0.12F, 0.0F), new Slot(0.5F, 0.12F, 0.0F), new Slot(1.0F, -0.12F, 0.0F),
+        new Slot(1.5F, 0.12F, 0.0F), new Slot(2.0F, -0.12F, 0.0F)
     });
 
-    /** One parking spot on a rack: where the bike sits (block fractions) and which way it faces. */
+    /** One parking spot in the rack's local frame (see the class javadoc). */
     public static final class Slot {
-        public final float x;
-        public final float z;
+        public final float along;
+        public final float across;
         public final float yaw;
 
-        public Slot(float x, float z, float yaw) {
-            this.x = x;
-            this.z = z;
+        public Slot(float along, float across, float yaw) {
+            this.along = along;
+            this.across = across;
             this.yaw = yaw;
         }
     }
 
     private final String key;
+    private final int length;
     private final Slot[] slots;
 
-    RackStyle(String key, Slot[] slots) {
+    RackStyle(String key, int length, Slot[] slots) {
         this.key = key;
+        this.length = length;
         this.slots = slots;
     }
 
@@ -59,12 +63,17 @@ public enum RackStyle {
         return key;
     }
 
+    /** How many blocks this rack occupies along its facing. */
+    public int length() {
+        return length;
+    }
+
     /** How many bikes this style holds. */
     public int capacity() {
         return slots.length;
     }
 
-    /** Where each held bike sits, indexed by slot. */
+    /** Where each held bike sits, in the rack's local frame, indexed by slot. */
     public Slot[] slots() {
         return slots;
     }

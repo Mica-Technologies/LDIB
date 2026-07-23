@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.UUID;
 import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
+import net.minecraft.util.EnumFacing;
 import net.minecraft.nbt.NBTTagCompound;
 import net.minecraft.nbt.NBTTagList;
 import net.minecraft.network.NetworkManager;
@@ -54,6 +55,17 @@ public class TileEntityBikeRack extends TileEntity {
 
     public int capacity() {
         return style().capacity();
+    }
+
+    /** The rack's facing (its length axis), read from the block state; defaults to NORTH. */
+    public EnumFacing facing() {
+        if (this.world != null) {
+            IBlockState state = this.world.getBlockState(this.pos);
+            if (state.getBlock() instanceof BlockBikeRack) {
+                return state.getValue(BlockBikeRack.FACING);
+            }
+        }
+        return EnumFacing.NORTH;
     }
 
     public int lockedCount() {
@@ -177,9 +189,9 @@ public class TileEntityBikeRack extends TileEntity {
         handleUpdateTag(pkt.getNbtCompound());
     }
 
-    /** Expand the render box so the bikes, which overhang the rack block, are not frustum-culled. */
+    /** Expand the render box to cover the whole (possibly multi-block) rack plus overhanging bikes. */
     @Override
     public AxisAlignedBB getRenderBoundingBox() {
-        return new AxisAlignedBB(this.pos).grow(1.0D);
+        return new AxisAlignedBB(this.pos).grow(style().length() + 1.0D);
     }
 }
