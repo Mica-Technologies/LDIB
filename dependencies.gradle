@@ -1,0 +1,46 @@
+//file:noinspection DependencyNotationArgument
+// TODO remove when fixed in RFG ^
+/*
+ * Add your dependencies here. Supported configurations:
+ *  - api("group:name:version:classifier"): if you use the types from this dependency in the public API of this mod
+ *       Available at runtime and compiletime for mods depending on this mod
+ *  - implementation("g:n:v:c"): if you need this for internal implementation details of the mod, but none of it is visible via the public API
+ *       Available at runtime but not compiletime for mods depending on this mod
+ *  - compileOnly("g:n:v:c"): if the mod you're building doesn't need this dependency during runtime at all, e.g. for optional mods
+ *       Not available at all for mods depending on this mod, only visible at compiletime for this mod
+ *  - compileOnlyApi("g:n:v:c"): like compileOnly, but also visible at compiletime for mods depending on this mod
+ *       Available at compiletime but not runtime for mods depending on this mod
+ *  - runtimeOnlyNonPublishable("g:n:v:c"): if you want to include a mod in this mod's runClient/runServer runs, but not publish it as a dependency
+ *       Not available at all for mods depending on this mod, only visible at runtime for this mod
+ *  - devOnlyNonPublishable("g:n:v:c"): a combination of runtimeOnlyNonPublishable and compileOnly for dependencies present at both compiletime and runtime,
+ *       but not published as Maven dependencies - useful for RFG-deobfuscated dependencies or local testing
+ *  - runtimeOnly("g:n:v:c"): if you don't need this at compile time, but want it to be present at runtime
+ *       Available at runtime for mods depending on this mod
+ *  - annotationProcessor("g:n:v:c"): mostly for java compiler plugins, if you know you need this, use it, otherwise don't worry
+ *  - testCONFIG("g:n:v:c") - replace CONFIG by one of the above (except api), same as above but for the test sources instead of main
+ *
+ *  - shadowImplementation("g:n:v:c"): effectively the same as API, but the dependency is included in your jar under a renamed package name
+ *       Requires you to enable usesShadowedDependencies in gradle.properties
+ *       For more info, see https://github.com/GregTechCEu/Buildscripts/blob/master/docs/shadow.md
+ *
+ * To add a mod with CurseMaven, replace '("g:n:v:c")' in the above with 'rfg.deobf("curse.maven:project_slug-project_id:file_id")'
+ * Example: devOnlyNonPublishable(rfg.deobf("curse.maven:top-245211:2667280"))
+ */
+dependencies {
+    // LDIB has no third-party mod dependencies, and that is deliberate — it keeps the
+    // dedicated-server classpath clean and the bike movement model (ldib.physics) a plain
+    // Java library.
+    //
+    // Notably NOT depended on:
+    //   - MinecraftTransportSimulator (MTS). Excellent prior art and proof that rider-driven
+    //     vehicles work well in 1.12.2, but MTS is a whole JSON-defined vehicle framework with
+    //     its own physics, packs and lifecycle. LDIB wants a handful of purpose-built rideables,
+    //     not a vehicle platform — reuse the *ideas* (see docs/AGENT-PLANS/MASTER_PLAN.md,
+    //     "Prior art"), not the jar. MTS is also GPLv3, which would relicense us.
+    //   - DynamX / any 6-DoF rigid-body engine. A bike ridden with WASD does not need a rigid-body
+    //     solver, and such solvers are nondeterministic across machines, which fights the
+    //     client-side prediction the ride needs to feel smooth. DynamX is additionally CC BY-NC-ND
+    //     (its code cannot be reused at all).
+    //
+    // JEI and TheOneProbe are on the dev classpath via includeCommonDevEnvMods.
+}

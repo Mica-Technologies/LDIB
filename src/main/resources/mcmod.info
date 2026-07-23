@@ -1,0 +1,18 @@
+[
+  {
+    "modid": "${modid}",
+    "name": "${modname}",
+    "description": "Rider-controlled bikes for Minecraft 1.12.2 — mount up and pedal, brake and steer with WASD. A blocky bicycle today; e-bikes and Bird/Lime-style scooters next.",
+    "version": "${version}",
+    "mcversion": "${mcversion}",
+    "credits": "Mica Technologies",
+    "logoFile": "",
+    "url": "https://github.com/Mica-Technologies/LDIB",
+    "updateUrl": "",
+    "authorList": ["Mica Technologies"],
+    "dependencies": [],
+    "dependants": [],
+    "requiredMods": [],
+    "useDependencyInformation": "true"
+  }
+]

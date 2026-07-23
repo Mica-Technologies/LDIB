@@ -1,0 +1,130 @@
+package com.micatechnologies.minecraft.ldib;
+
+import com.micatechnologies.minecraft.ldib.physics.BikeTuning;
+import java.io.File;
+import net.minecraftforge.common.config.Configuration;
+
+/**
+ * Forge {@link Configuration}-backed settings, loaded once in
+ * {@link Ldib#preInit(net.minecraftforge.fml.common.event.FMLPreInitializationEvent)}.
+ *
+ * <p>Values are read into static fields at load time rather than queried per-tick: the bike model
+ * steps for every ridden bike every tick, and {@code Configuration.get(...)} does string lookups
+ * and I/O bookkeeping that have no place in that path.</p>
+ *
+ * <p><b>Server authority.</b> Everything in the {@code physics} category affects movement results,
+ * so on a multiplayer server it must match between client and server or a riding client will
+ * visibly desync from the bike it is steering. The server's values are the truth; syncing them to
+ * clients on join is a Phase-2 task (see docs/AGENT-PLANS/MASTER_PLAN.md). Client-only presentation
+ * settings, when they exist, belong in a separate {@code client} category that is never synced.</p>
+ */
+public final class LdibConfig {
+
+    public static final String CATEGORY_PHYSICS = "physics";
+    public static final String CATEGORY_CLIENT = "client";
+
+    /** Top forward speed under pedal power, blocks/second. */
+    public static double maxSpeed = 7.0D;
+
+    /** Forward acceleration while pedalling/throttling, blocks/second². */
+    public static double pedalAcceleration = 3.5D;
+
+    /** Deceleration while braking, blocks/second². */
+    public static double brakeDeceleration = 9.0D;
+
+    /** Fraction of speed shed per second to rolling resistance while coasting (exponential decay). */
+    public static double rollingResistance = 0.6D;
+
+    /** Quadratic air-drag coefficient. */
+    public static double airDrag = 0.010D;
+
+    /** Maximum steering rate at low speed, degrees/second. */
+    public static double maxSteerRateDegPerSec = 90.0D;
+
+    /** Speed (blocks/s) at which steering authority has halved. */
+    public static double steerSpeedFalloff = 5.0D;
+
+    /** E-bike assisted top speed, blocks/second. Faster than a pedal bike; still not a rocket. */
+    public static double ebikeMaxSpeed = 11.0D;
+
+    /** E-bike acceleration (motor assist), blocks/second². Brisker off the line than a pedal bike. */
+    public static double ebikePedalAcceleration = 5.5D;
+
+    /**
+     * Physics sub-steps per game tick. One 50 ms step is coarse for steering; sub-stepping is the
+     * cheap fix and costs integrator time only, never bandwidth.
+     */
+    public static int physicsSubSteps = 2;
+
+    /** Whether the live speed readout is drawn while riding. Pure convenience; never synced. */
+    public static boolean enableRideHud = true;
+
+    private static Configuration config;
+
+    private LdibConfig() {
+        throw new AssertionError("No instances.");
+    }
+
+    public static void init(File configFile) {
+        config = new Configuration(configFile);
+        load();
+    }
+
+    /** The pedal-bicycle handling, from the current config values. */
+    public static BikeTuning bicycleTuning() {
+        return new BikeTuning(maxSpeed, pedalAcceleration, brakeDeceleration,
+            rollingResistance, airDrag, maxSteerRateDegPerSec, steerSpeedFalloff);
+    }
+
+    /**
+     * The e-bike handling: the bicycle baseline with a higher assisted top speed and brisker
+     * acceleration. Brake, drag and steering are shared with the bicycle — an e-bike stops and turns
+     * like a bike, it just goes faster. This is the "variants are data" principle: a variant is a few
+     * overridden numbers, not a new movement code path.
+     */
+    public static BikeTuning eBikeTuning() {
+        return new BikeTuning(ebikeMaxSpeed, ebikePedalAcceleration, brakeDeceleration,
+            rollingResistance, airDrag, maxSteerRateDegPerSec, steerSpeedFalloff);
+    }
+
+    private static void load() {
+        config.load();
+
+        config.addCustomCategoryComment(CATEGORY_PHYSICS,
+            "Bike handling. These values change movement RESULTS, so on a multiplayer server the "
+                + "server's copy is authoritative — a client with different values will visibly "
+                + "desync from the bike it is riding.");
+        config.addCustomCategoryComment(CATEGORY_CLIENT,
+            "Client-side presentation only. Never synced; safe to differ per player.");
+
+        maxSpeed = config.get(CATEGORY_PHYSICS, "maxSpeed", maxSpeed,
+            "Top forward speed under pedal power, blocks/second.", 1.0D, 60.0D).getDouble();
+        pedalAcceleration = config.get(CATEGORY_PHYSICS, "pedalAcceleration", pedalAcceleration,
+            "Forward acceleration while pedalling, blocks/second^2.", 0.1D, 50.0D).getDouble();
+        brakeDeceleration = config.get(CATEGORY_PHYSICS, "brakeDeceleration", brakeDeceleration,
+            "Deceleration while braking, blocks/second^2.", 0.1D, 100.0D).getDouble();
+        rollingResistance = config.get(CATEGORY_PHYSICS, "rollingResistance", rollingResistance,
+            "Fraction of speed lost per second while coasting (exponential decay).", 0.0D, 5.0D).getDouble();
+        airDrag = config.get(CATEGORY_PHYSICS, "airDrag", airDrag,
+            "Quadratic air-drag coefficient.", 0.0D, 1.0D).getDouble();
+        maxSteerRateDegPerSec = config.get(CATEGORY_PHYSICS, "maxSteerRateDegPerSec", maxSteerRateDegPerSec,
+            "Maximum steering rate at low speed, degrees/second.", 1.0D, 720.0D).getDouble();
+        steerSpeedFalloff = config.get(CATEGORY_PHYSICS, "steerSpeedFalloff", steerSpeedFalloff,
+            "Speed (blocks/s) at which steering authority has halved.", 0.1D, 60.0D).getDouble();
+        physicsSubSteps = config.get(CATEGORY_PHYSICS, "physicsSubSteps", physicsSubSteps,
+            "Physics sub-steps per game tick. Higher is smoother steering and costs CPU only.",
+            1, 16).getInt();
+        ebikeMaxSpeed = config.get(CATEGORY_PHYSICS, "ebikeMaxSpeed", ebikeMaxSpeed,
+            "E-bike assisted top speed, blocks/second.", 1.0D, 60.0D).getDouble();
+        ebikePedalAcceleration = config.get(CATEGORY_PHYSICS, "ebikePedalAcceleration",
+            ebikePedalAcceleration, "E-bike acceleration (motor assist), blocks/second^2.",
+            0.1D, 50.0D).getDouble();
+
+        enableRideHud = config.get(CATEGORY_CLIENT, "enableRideHud", enableRideHud,
+            "Show the live speed readout while riding.").getBoolean();
+
+        if (config.hasChanged()) {
+            config.save();
+        }
+    }
+}
