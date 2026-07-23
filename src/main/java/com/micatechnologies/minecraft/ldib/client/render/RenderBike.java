@@ -73,6 +73,6 @@ public class RenderBike extends Render<EntityBike> {
 
     @Override
     protected ResourceLocation getEntityTexture(EntityBike entity) {
-        return entity.variant().texture();
+        return entity.texture(); // muted fleet livery for share bikes, the variant skin otherwise
     }
 }

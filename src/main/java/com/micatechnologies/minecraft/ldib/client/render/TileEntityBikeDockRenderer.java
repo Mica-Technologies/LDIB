@@ -53,7 +53,7 @@ public class TileEntityBikeDockRenderer extends TileEntitySpecialRenderer<TileEn
         GlStateManager.enableRescaleNormal();
         GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
 
-        bindTexture(variant.texture());
+        bindTexture(variant.shareTexture()); // docked bikes are always public-fleet bikes
         model.render(null, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0625F);
 
         // A bike idling in a share dock: headlight off, rear light dimly flashing (a calm slow blink).

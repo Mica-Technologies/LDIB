@@ -174,6 +174,12 @@ public class BlockBikeRack extends Block {
             fromRiding = true;
         }
 
+        // Racks are for personal bikes; a public bike-share bike belongs on a dock.
+        if (fromRiding && ((EntityBike) player.getRidingEntity()).isShare()) {
+            status(player, "That's a bike-share bike — return it to a dock, not a rack.");
+            return true;
+        }
+
         if (toLock != null && !rack.isFull()) {
             int slot = rack.firstFreeSlot();
             rack.lock(slot, player.getUniqueID(), player.getName(), toLock);
@@ -214,8 +220,8 @@ public class BlockBikeRack extends Block {
      */
     /** Lock a specific bike into this rack (ridden or already placed) on {@code player}'s behalf. */
     public boolean tryLockBike(World world, BlockPos pos, EntityBike bike, EntityPlayer player) {
-        if (world.isRemote || bike == null || bike.isDead) {
-            return false;
+        if (world.isRemote || bike == null || bike.isDead || bike.isShare()) {
+            return false; // racks are for personal bikes; share bikes go on docks
         }
         IBlockState state = world.getBlockState(pos);
         TileEntityBikeRack rack = masterTE(world, pos, state);

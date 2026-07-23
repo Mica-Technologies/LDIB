@@ -4,12 +4,9 @@ import com.micatechnologies.minecraft.ldib.block.BlockBikeDock;
 import com.micatechnologies.minecraft.ldib.block.BlockBikeRack;
 import com.micatechnologies.minecraft.ldib.client.LdibKeyHandler;
 import com.micatechnologies.minecraft.ldib.entity.EntityBike;
-import java.util.List;
 import net.minecraft.block.Block;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.ScaledResolution;
-import net.minecraft.entity.player.EntityPlayer;
-import net.minecraft.util.math.AxisAlignedBB;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.world.World;
 import net.minecraftforge.client.event.RenderGameOverlayEvent;
@@ -26,7 +23,6 @@ import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
  */
 public class GrabPromptHud {
 
-    private static final double BIKE_RADIUS = 3.5D;
     private static final int STATION_RADIUS = 4;
 
     private String cachedPrompt;
@@ -54,41 +50,21 @@ public class GrabPromptHud {
     }
 
     private String computePrompt(Minecraft mc) {
-        EntityPlayer player = mc.player;
-        World world = mc.world;
-        boolean riding = player.getRidingEntity() instanceof EntityBike;
-        EntityBike bike = riding ? (EntityBike) player.getRidingEntity() : nearestBike(world, player);
-        if (bike == null) {
+        // Only while actually riding a rideable — never when the player is on foot.
+        if (!(mc.player.getRidingEntity() instanceof EntityBike)) {
             return null;
         }
+        EntityBike bike = (EntityBike) mc.player.getRidingEntity();
         String key = LdibKeyHandler.GRAB.getDisplayName();
-        int kind = nearestStationKind(world, bike);
-        if (kind == DOCK) {
+        int kind = nearestStationKind(mc.world, bike);
+        // Match the bike's kind to the station: share bikes return to docks, personal bikes lock to racks.
+        if (bike.isShare() && kind == DOCK) {
             return "Press " + key + " to return to the dock";
         }
-        if (kind == RACK) {
+        if (!bike.isShare() && kind == RACK) {
             return "Press " + key + " to lock to the rack";
         }
-        // No station nearby: offer pick-up only when on foot (while riding, the ride HUD suffices).
-        return riding ? null : "Press " + key + " to pick up the bike";
-    }
-
-    private static EntityBike nearestBike(World world, EntityPlayer player) {
-        AxisAlignedBB box = player.getEntityBoundingBox().grow(BIKE_RADIUS);
-        List<EntityBike> bikes = world.getEntitiesWithinAABB(EntityBike.class, box);
-        EntityBike best = null;
-        double bestSq = BIKE_RADIUS * BIKE_RADIUS;
-        for (EntityBike bike : bikes) {
-            if (bike.isBeingRidden() || bike.isDead) {
-                continue;
-            }
-            double sq = player.getDistanceSq(bike);
-            if (sq <= bestSq) {
-                bestSq = sq;
-                best = bike;
-            }
-        }
-        return best;
+        return null;
     }
 
     private static final int NONE = 0, DOCK = 1, RACK = 2;

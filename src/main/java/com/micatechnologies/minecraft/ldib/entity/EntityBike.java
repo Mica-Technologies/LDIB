@@ -47,6 +47,14 @@ public class EntityBike extends Entity {
     private static final DataParameter<Boolean> BRAKING =
         EntityDataManager.createKey(EntityBike.class, DataSerializers.BOOLEAN);
 
+    /**
+     * Whether this is a <b>public bike-share</b> bike (fleet livery, docks only) rather than a
+     * personal one (racks only). Synced so every client picks the right skin and so the dock/rack
+     * gating agrees. Set when a dock dispenses or is stocked with a bike; personal bikes stay false.
+     */
+    private static final DataParameter<Boolean> SHARE =
+        EntityDataManager.createKey(EntityBike.class, DataSerializers.BOOLEAN);
+
     /** Forward ground speed in blocks/second — the one state variable the physics model owns. */
     private double bikeSpeed;
 
@@ -81,20 +89,36 @@ public class EntityBike extends Entity {
     }
 
     public EntityBike(World world, BikeVariant variant) {
+        this(world, variant, false);
+    }
+
+    public EntityBike(World world, BikeVariant variant, boolean share) {
         this(world);
-        // entityInit() has already run inside super(world), so the key is registered by now.
+        // entityInit() has already run inside super(world), so the keys are registered by now.
         this.dataManager.set(VARIANT, variant.id());
+        this.dataManager.set(SHARE, share);
     }
 
     @Override
     protected void entityInit() {
         this.dataManager.register(VARIANT, BikeVariant.BICYCLE.id());
         this.dataManager.register(BRAKING, false);
+        this.dataManager.register(SHARE, false);
     }
 
     /** This bike's variant — drives both its handling ({@link BikeVariant#tuning()}) and its look. */
     public BikeVariant variant() {
         return BikeVariant.byId(this.dataManager.get(VARIANT));
+    }
+
+    /** Whether this is a public bike-share (fleet) bike — docks only — vs a personal one (racks only). */
+    public boolean isShare() {
+        return this.dataManager.get(SHARE);
+    }
+
+    /** The skin to draw for this bike: the muted fleet livery when it's a share bike, else the variant's. */
+    public net.minecraft.util.ResourceLocation texture() {
+        return isShare() ? variant().shareTexture() : variant().texture();
     }
 
     /** Whether the rider is currently braking — read by the renderer to light the brake light. */
@@ -314,6 +338,7 @@ public class EntityBike extends Entity {
     @Override
     protected void writeEntityToNBT(NBTTagCompound compound) {
         compound.setInteger("Variant", variant().id());
+        compound.setBoolean("Share", isShare());
         compound.setFloat("Yaw", this.rotationYaw);
         compound.setDouble("Speed", this.bikeSpeed);
     }
@@ -321,6 +346,7 @@ public class EntityBike extends Entity {
     @Override
     protected void readEntityFromNBT(NBTTagCompound compound) {
         this.dataManager.set(VARIANT, compound.getInteger("Variant"));
+        this.dataManager.set(SHARE, compound.getBoolean("Share"));
         this.rotationYaw = compound.getFloat("Yaw");
         this.bikeSpeed = compound.getDouble("Speed");
     }

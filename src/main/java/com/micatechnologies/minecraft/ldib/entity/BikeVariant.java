@@ -66,6 +66,11 @@ public enum BikeVariant {
         return new ResourceLocation(LdibConstants.MOD_NAMESPACE, "textures/entity/" + key + ".png");
     }
 
+    /** The muted public-fleet livery for this variant, {@code ldib:textures/entity/share_<key>.png}. */
+    public ResourceLocation shareTexture() {
+        return new ResourceLocation(LdibConstants.MOD_NAMESPACE, "textures/entity/share_" + key + ".png");
+    }
+
     /**
      * The handling this variant runs with, pulled live from config so retuning needs no code change.
      *

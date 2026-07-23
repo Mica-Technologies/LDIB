@@ -70,6 +70,18 @@ PALETTES = {
     },
 }
 
+# Public bike-share fleet livery: one MUTED, uniform look shared by every variant, so the fleet reads
+# as bland/institutional and distinct from the colourful personal bikes. Geometry (basket/battery/deck)
+# still tells the variants apart; only the colour is uniform.
+SHARE_LIVERY = {
+    "tyre":   NEAR_BLACK,
+    "frame":  (100, 116, 138),   # desaturated slate-blue
+    "accent": (150, 152, 158),   # muted grey
+    "metal":  (110, 112, 118),
+}
+for _base in ("bike", "ebike", "scooter", "scooter_fast"):
+    PALETTES["share_" + _base] = SHARE_LIVERY
+
 
 def shade(base, x, w, y, h):
     """Soft directional shading so flat solid faces read as 3D.

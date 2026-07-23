@@ -140,15 +140,13 @@ public class BlockBikeDock extends Block {
         }
         BikeShareNetwork network = BikeShareNetwork.get(world);
 
-        // What bike, if any, is the player presenting to return?
+        // Is the player presenting a bike at all (used only for the "occupied" message below)?
         ItemStack held = player.getHeldItem(hand);
         BikeVariant presenting = null;
-        boolean fromRiding = false;
         if (held.getItem() instanceof ItemBike) {
             presenting = ((ItemBike) held.getItem()).variant();
         } else if (player.getRidingEntity() instanceof EntityBike) {
             presenting = ((EntityBike) player.getRidingEntity()).variant();
-            fromRiding = true;
         }
 
         if (dock.isOccupied()) {
@@ -160,21 +158,36 @@ public class BlockBikeDock extends Block {
         }
 
         // Dock is free.
-        if (presenting != null) {
-            dock.dock(presenting);
-            if (fromRiding) {
-                EntityBike bike = (EntityBike) player.getRidingEntity();
-                bike.removePassengers();
-                bike.setDead();
-            } else if (!player.capabilities.isCreativeMode) {
+        // Op setup: sneak-right-click a free dock with a bike item to stock the fleet with a NEW
+        // public bike-share bike of that variant.
+        if (player.isSneaking() && held.getItem() instanceof ItemBike && player.canUseCommand(2, "")) {
+            dock.dock(((ItemBike) held.getItem()).variant());
+            if (!player.capabilities.isCreativeMode) {
                 held.shrink(1);
             }
+            network.bikeReturned();
+            status(player, "Added a bike-share bike to the network.");
+            return true;
+        }
+        // Return a ridden share bike (docks are for the public fleet only).
+        if (player.getRidingEntity() instanceof EntityBike) {
+            EntityBike bike = (EntityBike) player.getRidingEntity();
+            if (!bike.isShare()) {
+                status(player, "Docks are for bike-share bikes — lock a personal bike to a rack instead.");
+                return true;
+            }
+            dock.dock(bike.variant());
+            bike.removePassengers();
+            bike.setDead();
             network.bikeReturned();
             completeSessionOnReturn(world, player, network);
             return true;
         }
-
-        status(player, "This dock is empty. Ride or carry a bike here to return it.");
+        if (held.getItem() instanceof ItemBike) {
+            status(player, "Docks only take bike-share bikes. (Op: sneak-right-click to stock this dock.)");
+            return true;
+        }
+        status(player, "This dock is empty. Ride a bike-share bike here to return it.");
         return true;
     }
 
@@ -241,8 +254,8 @@ public class BlockBikeDock extends Block {
      */
     /** Clip a specific bike into this dock (ridden or already placed) on {@code player}'s behalf. */
     public boolean tryDockBike(World world, BlockPos pos, EntityBike bike, EntityPlayer player) {
-        if (world.isRemote || bike == null || bike.isDead) {
-            return false;
+        if (world.isRemote || bike == null || bike.isDead || !bike.isShare()) {
+            return false; // docks only take public bike-share bikes; personal bikes go on racks
         }
         TileEntityBikeDock dock = dockTE(world, pos);
         if (dock == null || dock.isOccupied()) {
@@ -269,7 +282,7 @@ public class BlockBikeDock extends Block {
     private static void spawnInFront(World world, BlockPos pos, IBlockState state, BikeVariant variant) {
         EnumFacing f = state.getValue(FACING);
         BlockPos front = pos.offset(f);
-        EntityBike bike = new EntityBike(world, variant);
+        EntityBike bike = new EntityBike(world, variant, true); // dispensed bikes are public-fleet bikes
         bike.setPositionAndRotation(
             front.getX() + 0.5D, pos.getY(), front.getZ() + 0.5D, f.getHorizontalAngle(), 0.0F);
         world.spawnEntity(bike);
