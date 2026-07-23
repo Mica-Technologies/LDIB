@@ -6,7 +6,6 @@ import net.minecraft.client.renderer.entity.Render;
 import net.minecraft.client.renderer.entity.RenderManager;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.MathHelper;
 import net.minecraft.world.EnumSkyBlock;
 
 /**
@@ -20,10 +19,6 @@ import net.minecraft.world.EnumSkyBlock;
  */
 public class RenderBike extends Render<EntityBike> {
 
-    /** Degrees of cosmetic lean per degree/tick of heading change, capped by {@link #MAX_LEAN_DEG}. */
-    private static final float LEAN_PER_YAW_RATE = 3.0F;
-    private static final float MAX_LEAN_DEG = 22.0F;
-
     public RenderBike(RenderManager renderManager) {
         super(renderManager);
         this.shadowSize = 0.5F;
@@ -36,20 +31,18 @@ public class RenderBike extends Render<EntityBike> {
         GlStateManager.translate((float) x, (float) y + 0.375F, (float) z);
         GlStateManager.rotate(180.0F - entityYaw, 0.0F, 1.0F, 0.0F);
 
-        // Cosmetic lean into turns: roll about the travel axis by how fast the heading is changing.
-        // Purely visual — the physics model doesn't know about it. Sign verified in-game 2026-07-22:
-        // the model-space roll runs opposite the turn direction, so negate to lean INTO the turn
-        // (A/left leans left, D/right leans right).
-        float yawRate = MathHelper.wrapDegrees(entity.rotationYaw - entity.prevRotationYaw);
-        float lean = MathHelper.clamp(-yawRate * LEAN_PER_YAW_RATE, -MAX_LEAN_DEG, MAX_LEAN_DEG);
-        GlStateManager.rotate(lean, 0.0F, 0.0F, 1.0F);
+        // Cosmetic lean into turns — eased and interpolated on the entity (see EntityBike#bikeLean)
+        // so it neither snaps at tick boundaries nor is renderer-local (one RenderBike serves every
+        // bike). Purely visual — the physics model doesn't know about it.
+        GlStateManager.rotate(entity.bikeLean(partialTicks), 0.0F, 0.0F, 1.0F);
 
         GlStateManager.scale(-1.0F, -1.0F, 1.0F);
 
-        // Spin the wheels proportionally to ground speed so the rideable reads as moving.
-        float wheelAngle = (float) (entity.speed() * (partialTicks + entity.ticksExisted) * 0.4D);
+        // Spin the wheels by the interpolated angle accumulated on the entity (see
+        // EntityBike#wheelRotation) so it reads as continuous rolling rather than snapping when speed
+        // changes.
         ModelRideable model = RideableModels.forVariant(entity.variant());
-        model.setWheelSpin(wheelAngle);
+        model.setWheelSpin(entity.wheelRotation(partialTicks));
 
         bindEntityTexture(entity);
         model.render(entity, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0625F);

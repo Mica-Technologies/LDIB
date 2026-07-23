@@ -50,6 +50,30 @@ public class EntityBike extends Entity {
     /** Forward ground speed in blocks/second — the one state variable the physics model owns. */
     private double bikeSpeed;
 
+    /**
+     * Radians a wheel turns per block of ground rolled, for pure rolling (no slip): {@code angle =
+     * distance / radius}. The modeled wheel radius is ~0.4 blocks (see {@code ModelRideable}), so
+     * {@code 1 / 0.4 = 2.5} rad/block.
+     */
+    private static final float WHEEL_RADIANS_PER_BLOCK = 2.5F;
+
+    /** Cosmetic wheel-spin angle, in radians — accumulated each tick, not derived from v*t, so it
+     *  never snaps when speed changes mid-turn. Purely presentational; read by {@code RenderBike}. */
+    private float wheelRotation;
+    private float prevWheelRotation;
+
+    /** Degrees of cosmetic lean per degree/tick of heading change, capped by {@link #MAX_LEAN_DEG}. */
+    private static final float LEAN_PER_YAW_RATE = 3.0F;
+    private static final float MAX_LEAN_DEG = 22.0F;
+
+    /** How much of the way from current lean to the target lean to close each tick (exponential ease). */
+    private static final float LEAN_SMOOTHING = 0.35F;
+
+    /** Cosmetic lean-into-the-turn angle, in degrees — eased toward its target rather than stepping
+     *  at tick boundaries. Purely presentational; read by {@code RenderBike}. */
+    private float bikeLean;
+    private float prevBikeLean;
+
     public EntityBike(World world) {
         super(world);
         setSize(0.8F, 1.0F);
@@ -239,6 +263,21 @@ public class EntityBike extends Entity {
         this.bikeSpeed = state.speed;
         this.rotationYaw = (float) state.headingDegrees;
 
+        // Accumulate wheel spin from distance actually rolled this tick, rather than deriving it from
+        // v*t — that way the angle never snaps when speed changes (e.g. braking mid-turn).
+        this.prevWheelRotation = this.wheelRotation;
+        this.wheelRotation +=
+            (float) (this.bikeSpeed * LdibConstants.SECONDS_PER_TICK * WHEEL_RADIANS_PER_BLOCK);
+
+        // Cosmetic lean into turns: ease toward a target derived from this tick's heading change,
+        // rather than snapping straight to it, so the lean doesn't step at tick boundaries. Sign
+        // verified in-game 2026-07-22: negate so the bike leans INTO the turn (A/left leans left,
+        // D/right leans right).
+        float yawRate = MathHelper.wrapDegrees(this.rotationYaw - this.prevRotationYaw);
+        float leanTarget = MathHelper.clamp(-yawRate * LEAN_PER_YAW_RATE, -MAX_LEAN_DEG, MAX_LEAN_DEG);
+        this.prevBikeLean = this.bikeLean;
+        this.bikeLean += (leanTarget - this.bikeLean) * LEAN_SMOOTHING;
+
         // Turn (speed, heading) into this tick's horizontal motion. Minecraft forward for a yaw is
         // (-sin yaw, cos yaw).
         double perTick = this.bikeSpeed * LdibConstants.SECONDS_PER_TICK;
@@ -289,5 +328,15 @@ public class EntityBike extends Entity {
     /** Current forward speed in blocks/second — read by the renderer for wheel spin. */
     public double speed() {
         return this.bikeSpeed;
+    }
+
+    /** Interpolated cosmetic wheel-spin angle, in radians — read by the renderer each frame. */
+    public float wheelRotation(float partialTicks) {
+        return this.prevWheelRotation + (this.wheelRotation - this.prevWheelRotation) * partialTicks;
+    }
+
+    /** Interpolated cosmetic lean-into-the-turn angle, in degrees — read by the renderer each frame. */
+    public float bikeLean(float partialTicks) {
+        return this.prevBikeLean + (this.bikeLean - this.prevBikeLean) * partialTicks;
     }
 }
