@@ -58,6 +58,11 @@ public class EntityBike extends Entity {
     /** Forward ground speed in blocks/second — the one state variable the physics model owns. */
     private double bikeSpeed;
 
+    /** Max horizontal distance (blocks) any single {@link #move} sub-step covers; the per-tick move is
+     *  split into ceil(perTick / this) small steps for accurate collision at speed. 0.25 = 1-2 steps at
+     *  current top speeds, more only if a much faster variant is ever added. */
+    private static final double MAX_MOVE_STEP = 0.25D;
+
     /**
      * Radians a wheel turns per block of ground rolled, for pure rolling (no slip): {@code angle =
      * distance / radius}. The modeled wheel radius is ~0.4 blocks (see {@code ModelRideable}), so
@@ -338,13 +343,31 @@ public class EntityBike extends Entity {
             this.motionY -= 0.08D;
         }
 
-        this.move(MoverType.SELF, this.motionX, this.motionY, this.motionZ);
+        // Sub-step the world move() when moving fast: several small move() calls this tick instead of
+        // one big jump. At MVP/e-bike/scooter speeds this is 1-2 steps; it keeps collision accurate at
+        // speed (no clipping past a wall corner) and keeps each step small — a defensive margin for the
+        // server's per-packet "moved too quickly" check as faster variants arrive (master plan,
+        // Appendix A.1). It does NOT change the net per-tick displacement, so the ride's speed is
+        // unchanged. Distinct from physicsSubSteps, which sub-steps the handling model, not the move.
+        double horizontal = Math.sqrt(this.motionX * this.motionX + this.motionZ * this.motionZ);
+        int moveSteps = Math.max(1, (int) Math.ceil(horizontal / MAX_MOVE_STEP));
+        double stepX = this.motionX / moveSteps;
+        double stepY = this.motionY / moveSteps;
+        double stepZ = this.motionZ / moveSteps;
+        boolean hitWall = false;
+        for (int i = 0; i < moveSteps; i++) {
+            this.move(MoverType.SELF, stepX, stepY, stepZ);
+            if (this.collidedHorizontally) {
+                hitWall = true; // stop at the wall rather than grinding the remaining sub-steps into it
+                break;
+            }
+        }
 
         if (this.onGround) {
             this.motionY = 0.0D;
         }
         // Ran into a wall: bleed off speed rather than grinding along it at full pedal.
-        if (this.collidedHorizontally) {
+        if (hitWall) {
             this.bikeSpeed *= 0.5D;
         }
 
