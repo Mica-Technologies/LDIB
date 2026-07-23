@@ -52,6 +52,12 @@ public class TileEntityBikeDockRenderer extends TileEntitySpecialRenderer<TileEn
         bindTexture(variant.texture());
         model.render(null, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0625F);
 
+        // A bike idling in a share dock: headlight off, rear light dimly flashing (a calm slow blink).
+        if (variant.hasLights() && dock.getWorld() != null) {
+            boolean rearOn = (dock.getWorld().getTotalWorldTime() % 20L) < 10L;
+            model.renderLights(0.0625F, false, rearOn, 0.4F);
+        }
+
         GlStateManager.popMatrix();
     }
 }

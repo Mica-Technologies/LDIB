@@ -18,26 +18,33 @@ import net.minecraft.client.renderer.OpenGlHelper;
  * had the handlebars at +z, i.e. facing backwards — invisible in first person on the seated bike, but
  * glaring on the standing scooter.)</p>
  *
- * <p><b>Round-ish wheels.</b> {@link #buildWheel} fakes a round wheel from six thin planks that each
- * span the full diameter, rotated in 30° steps about the axle — a twelve-sided silhouette. Spinning
- * the wheel is then just adding an angle to every plank ({@link #spinWheel}).</p>
+ * <p><b>Round-ish wheels.</b> {@link #buildWheel} makes a wheel as a ring of twelve short rim
+ * segments sitting at the radius (a 12-gon tyre) plus a small hub — nothing crosses the centre, so
+ * there is no pile of overlapping faces to z-fight and it reads as round rather than as spokes.
+ * Spinning is just adding an angle to every segment ({@link #spinWheel}).</p>
+ *
+ * <p><b>Avoiding z-fighting.</b> Frame tubes all share the {@code x = ±(w/2)} side planes, so where
+ * two of them overlap (at a joint) their faces fight. {@link #lug} drops a slightly-wider cube at a
+ * joint to bury those overlaps; give any part that would sit coplanar with a lug a different width so
+ * their faces never coincide.</p>
  */
 public abstract class ModelRideable extends ModelBase {
 
-    /** Number of planks per wheel; each contributes two rim points → a 12-gon. */
-    private static final int WHEEL_PLANKS = 6;
-    private static final double PLANK_STEP = Math.PI / WHEEL_PLANKS; // 30°
+    /** Rim segments per wheel — a 12-gon tyre. */
+    private static final int WHEEL_SEGMENTS = 12;
+    private static final double SEGMENT_STEP = 2.0 * Math.PI / WHEEL_SEGMENTS; // 30°
+    private static final int RIM_DEPTH = 2; // radial thickness of the tyre, px
 
     /** Spin the wheels by {@code wheelAngle} radians — called by renderers from ground speed. */
     public abstract void setWheelSpin(float wheelAngle);
 
     /**
-     * Draw this rideable's emissive light fixtures — a white headlight and a red brake light — each at
-     * full brightness so they glow regardless of ambient light. Variants without lights (the pedal
-     * bicycle) are simply never asked to draw them; see {@link
+     * Draw this rideable's emissive light lenses — a white headlight and a red brake light — glowing at
+     * {@code intensity} (1 = full; lower dims them, e.g. a bike idling in a share dock). Variants
+     * without lights (the pedal bicycle) are simply never asked to draw them; see {@link
      * com.micatechnologies.minecraft.ldib.entity.BikeVariant#hasLights()}.
      */
-    public abstract void renderLights(float scale, boolean headlightOn, boolean brakeLightOn);
+    public abstract void renderLights(float scale, boolean headlightOn, boolean brakeLightOn, float intensity);
 
     // --- Model-building helpers --------------------------------------------------------------
 
@@ -47,38 +54,74 @@ public abstract class ModelRideable extends ModelBase {
      * centre plane, a single rotation about the axle (X) aims each one.
      */
     protected ModelRenderer tube(float ay, float az, float by, float bz, int w) {
+        return tube(ay, az, by, bz, w, 0.0F);
+    }
+
+    /**
+     * As {@link #tube(float, float, float, float, int)} but grown (or shrunk, if {@code grow} is
+     * negative) uniformly by {@code grow} px on every face — used to make a {@code w}-px tube render a
+     * fraction thinner than a whole pixel (e.g. the scooter's slimmer stem/handlebars).
+     */
+    protected ModelRenderer tube(float ay, float az, float by, float bz, int w, float grow) {
         float dy = by - ay;
         float dz = bz - az;
         int len = Math.max(1, Math.round((float) Math.sqrt(dy * dy + dz * dz)));
         ModelRenderer t = new ModelRenderer(this, 0, 0);
-        t.addBox(-w / 2.0F, 0.0F, -w / 2.0F, w, len, w);
+        t.addBox(-w / 2.0F, 0.0F, -w / 2.0F, w, len, w, grow);
         t.setRotationPoint(0.0F, ay, az);
         t.rotateAngleX = (float) Math.atan2(dz, dy);
         return t;
     }
 
-    /**
-     * A round-ish wheel centred on the axle at {@code (ay, az)}: {@code radius} px, {@code tireWidth}
-     * px across (the axle direction — keep this thinner than the frame to avoid z-fighting), each
-     * plank {@code rimThickness} px. Returns the six planks; render them as a group and spin with
-     * {@link #spinWheel}.
-     */
-    protected ModelRenderer[] buildWheel(float ay, float az, int radius, int tireWidth, int rimThickness) {
-        ModelRenderer[] planks = new ModelRenderer[WHEEL_PLANKS];
-        for (int i = 0; i < WHEEL_PLANKS; i++) {
-            ModelRenderer p = new ModelRenderer(this, 0, 0);
-            p.addBox(-tireWidth / 2.0F, -radius, -rimThickness / 2.0F, tireWidth, radius * 2, rimThickness);
-            p.setRotationPoint(0.0F, ay, az);
-            p.rotateAngleX = (float) (i * PLANK_STEP);
-            planks[i] = p;
-        }
-        return planks;
+    /** A plain box at the model origin (rotation point 0,0,0) from an offset with px dimensions. */
+    protected ModelRenderer box(float ox, float oy, float oz, int w, int h, int d) {
+        ModelRenderer b = new ModelRenderer(this, 0, 0);
+        b.addBox(ox, oy, oz, w, h, d);
+        b.setRotationPoint(0.0F, 0.0F, 0.0F);
+        return b;
     }
 
-    /** Re-aim a wheel's planks so the whole wheel is rotated by {@code spin} radians. */
+    /** A joint cube at {@code (y, z)}, {@code size} px on a side, to bury overlapping tube ends. */
+    protected ModelRenderer lug(float y, float z, int size) {
+        ModelRenderer l = new ModelRenderer(this, 0, 0);
+        l.addBox(-size / 2.0F, -size / 2.0F, -size / 2.0F, size, size, size);
+        l.setRotationPoint(0.0F, y, z);
+        return l;
+    }
+
+    /**
+     * A round-ish wheel centred on the axle at {@code (ay, az)}: {@code radius} px, {@code tireWidth}
+     * px across (the axle direction — keep this thinner than the frame). Built as a 12-segment rim ring
+     * (each segment a short tangential slab at the radius) plus a small hub, so nothing overlaps at the
+     * centre. Returns the segments + hub; render as a group and spin with {@link #spinWheel}.
+     */
+    protected ModelRenderer[] buildWheel(float ay, float az, int radius, int tireWidth) {
+        int sideLen = Math.max(2, Math.round(2.0F * radius * (float) Math.sin(Math.PI / WHEEL_SEGMENTS)) + 1);
+        ModelRenderer[] parts = new ModelRenderer[WHEEL_SEGMENTS + 1];
+        for (int i = 0; i < WHEEL_SEGMENTS; i++) {
+            ModelRenderer seg = new ModelRenderer(this, 0, 0);
+            // A slab at the top of the wheel (−y is up), thin radially (RIM_DEPTH), long tangentially.
+            // Adjacent segments overlap at the corners and would share the x = ±tireWidth/2 side plane
+            // (→ z-fighting); nudge odd segments a third of a pixel in x so no two neighbours are
+            // coplanar. The tyre reads the same but the flicker is gone.
+            float xNudge = (i % 2 == 0) ? 0.0F : 0.34F;
+            seg.addBox(-tireWidth / 2.0F + xNudge, -radius, -sideLen / 2.0F, tireWidth, RIM_DEPTH, sideLen);
+            seg.setRotationPoint(0.0F, ay, az);
+            seg.rotateAngleX = (float) (i * SEGMENT_STEP);
+            parts[i] = seg;
+        }
+        int hub = Math.min(4, radius);
+        ModelRenderer h = new ModelRenderer(this, 0, 0);
+        h.addBox(-tireWidth / 2.0F, -hub / 2.0F, -hub / 2.0F, tireWidth, hub, hub);
+        h.setRotationPoint(0.0F, ay, az);
+        parts[WHEEL_SEGMENTS] = h;
+        return parts;
+    }
+
+    /** Re-aim a wheel's rim segments so the whole wheel is rotated by {@code spin} radians. */
     protected static void spinWheel(ModelRenderer[] wheel, float spin) {
         for (int i = 0; i < wheel.length; i++) {
-            wheel[i].rotateAngleX = (float) (i * PLANK_STEP) + spin;
+            wheel[i].rotateAngleX = (float) (i * SEGMENT_STEP) + spin;
         }
     }
 
@@ -89,16 +132,40 @@ public abstract class ModelRideable extends ModelBase {
         }
     }
 
+    /** Bright white for a headlight, red for a brake light. */
+    private static final float[] HEAD_RGB = {1.0F, 1.0F, 0.95F};
+    private static final float[] BRAKE_RGB = {1.0F, 0.05F, 0.05F};
+    /** Dark grey the light housings (permanent hardware) are drawn in. */
+    private static final float[] HARDWARE_RGB = {0.24F, 0.24F, 0.27F};
+
     /**
-     * Render the given light parts emissively: texture off (so they show as flat colour on the
-     * placeholder skins), lighting off, and the lightmap forced to full bright, then restored. A
-     * headlight is warm white; a brake light is red.
+     * Draw solid, always-present hardware (e.g. the light housings) in a flat dark grey with normal
+     * world lighting — so a light reads as a real fixture bolted to the bike, not a blob that only
+     * exists when lit. Call from {@code render}, after the textured parts.
      */
-    protected static void renderLightFixtures(float scale, boolean headlightOn, ModelRenderer headlight,
-                                              boolean brakeLightOn, ModelRenderer brakeLight) {
+    protected static void renderHardware(float scale, ModelRenderer... parts) {
+        GlStateManager.disableTexture2D();
+        GlStateManager.color(HARDWARE_RGB[0], HARDWARE_RGB[1], HARDWARE_RGB[2], 1.0F);
+        for (ModelRenderer part : parts) {
+            part.render(scale);
+        }
+        GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
+        GlStateManager.enableTexture2D();
+    }
+
+    /**
+     * Render the emissive lenses that sit in the (always-present) housings: a bright full-brightness
+     * core plus an additive translucent glow that flares outward. Texture and lighting are off and the
+     * lightmap is forced full-bright, then all restored.
+     */
+    protected static void renderLightFixtures(float scale,
+                                              boolean headlightOn, ModelRenderer headLens, ModelRenderer headGlow,
+                                              boolean brakeLightOn, ModelRenderer brakeLens, ModelRenderer brakeGlow,
+                                              float intensity) {
         if (!headlightOn && !brakeLightOn) {
             return;
         }
+        float i = Math.max(0.0F, Math.min(1.0F, intensity));
         float lastX = OpenGlHelper.lastBrightnessX;
         float lastY = OpenGlHelper.lastBrightnessY;
 
@@ -106,14 +173,30 @@ public abstract class ModelRideable extends ModelBase {
         GlStateManager.disableLighting();
         OpenGlHelper.setLightmapTextureCoords(OpenGlHelper.lightmapTexUnit, 240.0F, 240.0F);
 
+        // Bright, opaque lens cores.
         if (headlightOn) {
-            GlStateManager.color(1.0F, 1.0F, 0.85F, 1.0F);
-            headlight.render(scale);
+            GlStateManager.color(HEAD_RGB[0] * i, HEAD_RGB[1] * i, HEAD_RGB[2] * i, 1.0F);
+            headLens.render(scale);
         }
         if (brakeLightOn) {
-            GlStateManager.color(1.0F, 0.05F, 0.05F, 1.0F);
-            brakeLight.render(scale);
+            GlStateManager.color(BRAKE_RGB[0] * i, BRAKE_RGB[1] * i, BRAKE_RGB[2] * i, 1.0F);
+            brakeLens.render(scale);
         }
+
+        // Additive, translucent glow flares — bloom outward from the lens without occluding.
+        GlStateManager.enableBlend();
+        GlStateManager.blendFunc(GlStateManager.SourceFactor.SRC_ALPHA, GlStateManager.DestFactor.ONE);
+        GlStateManager.depthMask(false);
+        if (headlightOn) {
+            GlStateManager.color(HEAD_RGB[0], HEAD_RGB[1], HEAD_RGB[2], 0.55F * i);
+            headGlow.render(scale);
+        }
+        if (brakeLightOn) {
+            GlStateManager.color(BRAKE_RGB[0], BRAKE_RGB[1], BRAKE_RGB[2], 0.45F * i);
+            brakeGlow.render(scale);
+        }
+        GlStateManager.depthMask(true);
+        GlStateManager.disableBlend();
 
         GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
         OpenGlHelper.setLightmapTextureCoords(OpenGlHelper.lightmapTexUnit, lastX, lastY);

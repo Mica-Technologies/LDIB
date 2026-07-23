@@ -7,6 +7,7 @@ import net.minecraft.client.renderer.entity.RenderManager;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
+import net.minecraft.world.EnumSkyBlock;
 
 /**
  * Draws an {@link EntityBike}. Client-only — this class and {@link ModelBike} are the only bike code
@@ -53,14 +54,24 @@ public class RenderBike extends Render<EntityBike> {
         bindEntityTexture(entity);
         model.render(entity, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0625F);
 
-        // Emissive lights (e-bike / scooter): headlight on when it's dark at the bike, brake light on
-        // when braking — flashing while braking, otherwise a steady tail light in the dark.
+        // Emissive lights (e-bike / scooter). Headlight: on when it's dark at the bike. Rear light: a
+        // running tail light that always flashes (like a real bike-share bike) and goes solid while
+        // braking — so it's visible day or night, not only when braking in the dark.
         if (entity.variant().hasLights()) {
             BlockPos pos = new BlockPos(entity.posX, entity.posY + 0.5D, entity.posZ);
-            boolean dark = entity.world.getLight(pos) < 8;
-            boolean braking = entity.isBraking();
-            boolean rearOn = braking ? (entity.ticksExisted % 10 < 6) : dark;
-            model.renderLights(0.0625F, dark, rearOn);
+            // Headlight comes on when it's dark at the bike. Stored sky light stays 15 under open sky
+            // regardless of time (day/night dimming is a render-only effect), so darkness is judged from
+            // the synced time of day, plus block light for caves/shade. On when: it's night, or the spot
+            // has little sky access — and no bright block light nearby.
+            long timeOfDay = ((entity.world.getWorldTime() % 24000L) + 24000L) % 24000L;
+            boolean night = timeOfDay >= 13000L && timeOfDay <= 23000L;
+            int blockLight = entity.world.getLightFor(EnumSkyBlock.BLOCK, pos);
+            int skyLight = entity.world.getLightFor(EnumSkyBlock.SKY, pos);
+            boolean dark = blockLight < 8 && (night || skyLight < 8);
+            // Rear light: solid when braking (S) or stopped, otherwise a fast flash (period 10 ticks).
+            boolean solid = entity.isBraking() || Math.abs(entity.speed()) < 0.1D;
+            boolean rearOn = solid || (entity.ticksExisted % 10 < 5);
+            model.renderLights(0.0625F, dark, rearOn, 1.0F);
         }
 
         GlStateManager.popMatrix();

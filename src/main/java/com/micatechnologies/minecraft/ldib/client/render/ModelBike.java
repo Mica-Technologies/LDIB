@@ -27,16 +27,24 @@ public class ModelBike extends ModelRideable {
     private final ModelRenderer stem;
     private final ModelRenderer handlebar;
     private final ModelRenderer saddle;
-    private final ModelRenderer headlight;
-    private final ModelRenderer brakeLight;
+    private final ModelRenderer bbLug;
+    private final ModelRenderer htLug;
+    private final ModelRenderer stLug;
+    private final ModelRenderer raLug;
+    private final ModelRenderer headHousing;
+    private final ModelRenderer headLens;
+    private final ModelRenderer headGlow;
+    private final ModelRenderer brakeHousing;
+    private final ModelRenderer brakeLens;
+    private final ModelRenderer brakeGlow;
 
     public ModelBike() {
         this.textureWidth = 64;
         this.textureHeight = 32;
 
         // Wheels (radius 7 = 14 px ≈ 0.875 block): front toward −z, rear toward +z. Thin 1 px tyres.
-        frontWheel = buildWheel(-1.0F, -7.0F, 7, 1, 2);
-        rearWheel = buildWheel(-1.0F, 7.0F, 7, 1, 2);
+        frontWheel = buildWheel(-1.0F, -7.0F, 7, 1);
+        rearWheel = buildWheel(-1.0F, 7.0F, 7, 1);
 
         // Frame nodes (model space, +y down, front −z):
         //   bottom bracket BB(+2, 0), head tube HT(−9, −6), seat top ST(−11, +5),
@@ -53,18 +61,26 @@ public class ModelBike extends ModelRideable {
         handlebar.addBox(-5.0F, -1.0F, -1.0F, 10, 2, 2);
         handlebar.setRotationPoint(0.0F, -12.0F, -6.0F);
 
+        // Saddle: 4 px wide so it is not coplanar with the 3 px seat lug it sits over.
         saddle = new ModelRenderer(this, 0, 0);
-        saddle.addBox(-1.5F, -1.0F, -3.0F, 3, 1, 6);
+        saddle.addBox(-2.0F, -1.0F, -3.0F, 4, 1, 6);
         saddle.setRotationPoint(0.0F, -12.0F, 5.0F);
 
-        // Emissive lights (drawn only by renderLights): headlight at the front (−z), brake at rear (+z).
-        headlight = new ModelRenderer(this, 0, 0);
-        headlight.addBox(-1.5F, -9.0F, -9.0F, 3, 2, 1);
-        headlight.setRotationPoint(0.0F, 0.0F, 0.0F);
+        // Joint lugs bury the overlapping tube ends at each convergence (see ModelRideable).
+        bbLug = lug(2.0F, 0.0F, 3);   // bottom bracket: down/seat/chain
+        htLug = lug(-9.0F, -6.0F, 3); // head tube: down/top/fork/stem
+        stLug = lug(-11.0F, 5.0F, 3); // seat cluster: seat/top/seat-stay
+        raLug = lug(-1.0F, 7.0F, 3);  // rear axle: chain + seat stays
 
-        brakeLight = new ModelRenderer(this, 0, 0);
-        brakeLight.addBox(-1.5F, -12.0F, 8.0F, 3, 2, 1);
-        brakeLight.setRotationPoint(0.0F, 0.0F, 0.0F);
+        // Lights = permanent grey housing (drawn in render) + emissive lens + additive glow (drawn in
+        // renderLights). Headlight at the front (−z), brake at the rear (+z).
+        headHousing = box(-1.5F, -9.0F, -11.0F, 3, 3, 2);
+        headLens = box(-1.0F, -8.5F, -11.5F, 2, 2, 1);
+        headGlow = box(-3.0F, -10.0F, -13.0F, 6, 6, 3);
+
+        brakeHousing = box(-1.5F, -10.0F, 8.0F, 3, 3, 2);
+        brakeLens = box(-1.0F, -9.5F, 10.0F, 2, 2, 1);
+        brakeGlow = box(-2.5F, -10.5F, 10.0F, 5, 5, 2);
     }
 
     @Override
@@ -72,6 +88,10 @@ public class ModelBike extends ModelRideable {
                        float netHeadYaw, float headPitch, float scale) {
         renderGroup(frontWheel, scale);
         renderGroup(rearWheel, scale);
+        bbLug.render(scale);
+        htLug.render(scale);
+        stLug.render(scale);
+        raLug.render(scale);
         downTube.render(scale);
         seatTube.render(scale);
         topTube.render(scale);
@@ -81,6 +101,7 @@ public class ModelBike extends ModelRideable {
         stem.render(scale);
         handlebar.render(scale);
         saddle.render(scale);
+        renderHardware(scale, headHousing, brakeHousing);
     }
 
     @Override
@@ -90,7 +111,8 @@ public class ModelBike extends ModelRideable {
     }
 
     @Override
-    public void renderLights(float scale, boolean headlightOn, boolean brakeLightOn) {
-        renderLightFixtures(scale, headlightOn, headlight, brakeLightOn, brakeLight);
+    public void renderLights(float scale, boolean headlightOn, boolean brakeLightOn, float intensity) {
+        renderLightFixtures(scale, headlightOn, headLens, headGlow,
+            brakeLightOn, brakeLens, brakeGlow, intensity);
     }
 }
