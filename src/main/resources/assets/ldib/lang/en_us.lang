@@ -14,3 +14,6 @@ tile.ldib.bike_rack_classic.name=Bike Rack (Classic)
 
 tile.ldib.bike_dock.name=Bike Dock
 tile.ldib.bike_kiosk.name=Bike Share Kiosk
+
+key.categories.ldib=Immersive Biking
+key.ldib.grab_dock=Grab / Dock Bike

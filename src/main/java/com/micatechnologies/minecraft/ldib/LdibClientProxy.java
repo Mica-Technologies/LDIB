@@ -36,6 +36,7 @@ public class LdibClientProxy extends LdibCommonProxy {
             com.micatechnologies.minecraft.ldib.block.TileEntityBikeDock.class,
             new com.micatechnologies.minecraft.ldib.client.render.TileEntityBikeDockRenderer());
         MinecraftForge.EVENT_BUS.register(new RideHud());
+        com.micatechnologies.minecraft.ldib.client.LdibKeyHandler.register();
         // ModelRegistryEvent is on the MOD bus; register this proxy to the Forge bus is not enough,
         // so subscribe it explicitly to receive the model-registration event.
         MinecraftForge.EVENT_BUS.register(this);
