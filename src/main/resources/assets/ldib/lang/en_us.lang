@@ -3,6 +3,7 @@ itemGroup.ldib=Immersive Biking
 item.ldib.bike.name=Bicycle
 item.ldib.ebike.name=E-Bike
 item.ldib.scooter.name=Scooter
+item.ldib.scooter_fast.name=Performance Scooter
 entity.bike.name=Bike
 
 tile.ldib.bike_rack_hoop.name=Bike Rack (Hoop)

@@ -50,11 +50,17 @@ public final class LdibConfig {
     /** E-bike acceleration (motor assist), blocks/second². Brisker off the line than a pedal bike. */
     public static double ebikePedalAcceleration = 5.5D;
 
-    /** Scooter top speed, blocks/second. A kick/e-scooter is slower than a bicycle. */
-    public static double scooterMaxSpeed = 5.5D;
+    /** Scooter top speed, blocks/second. ~12 mph (5.36 m/s) — a standard shared e-scooter. */
+    public static double scooterMaxSpeed = 5.36D;
 
     /** Scooter acceleration, blocks/second². */
     public static double scooterAcceleration = 4.0D;
+
+    /** Performance-scooter top speed, blocks/second. ~22 mph (9.84 m/s) — a fast private e-scooter. */
+    public static double scooterFastMaxSpeed = 9.84D;
+
+    /** Performance-scooter acceleration, blocks/second². Brisker off the line than the standard one. */
+    public static double scooterFastAcceleration = 6.0D;
 
     /** Scooter braking, blocks/second². Small wheels = weaker brakes than a bike. */
     public static double scooterBrakeDeceleration = 6.0D;
@@ -112,6 +118,16 @@ public final class LdibConfig {
             rollingResistance, airDrag, scooterMaxSteerRateDegPerSec, scooterSteerSpeedFalloff);
     }
 
+    /**
+     * The performance scooter: the standard scooter's handling with a much higher top speed and
+     * brisker acceleration. Brake and (twitchy) steer are shared — it goes faster, it doesn't
+     * magically stop or turn better. Same "variants are data" principle as the e-bike.
+     */
+    public static BikeTuning scooterFastTuning() {
+        return new BikeTuning(scooterFastMaxSpeed, scooterFastAcceleration, scooterBrakeDeceleration,
+            rollingResistance, airDrag, scooterMaxSteerRateDegPerSec, scooterSteerSpeedFalloff);
+    }
+
     private static void load() {
         config.load();
 
@@ -145,9 +161,14 @@ public final class LdibConfig {
             ebikePedalAcceleration, "E-bike acceleration (motor assist), blocks/second^2.",
             0.1D, 50.0D).getDouble();
         scooterMaxSpeed = config.get(CATEGORY_PHYSICS, "scooterMaxSpeed", scooterMaxSpeed,
-            "Scooter top speed, blocks/second.", 1.0D, 60.0D).getDouble();
+            "Scooter top speed, blocks/second (~12 mph).", 1.0D, 60.0D).getDouble();
         scooterAcceleration = config.get(CATEGORY_PHYSICS, "scooterAcceleration", scooterAcceleration,
             "Scooter acceleration, blocks/second^2.", 0.1D, 50.0D).getDouble();
+        scooterFastMaxSpeed = config.get(CATEGORY_PHYSICS, "scooterFastMaxSpeed", scooterFastMaxSpeed,
+            "Performance-scooter top speed, blocks/second (~22 mph).", 1.0D, 60.0D).getDouble();
+        scooterFastAcceleration = config.get(CATEGORY_PHYSICS, "scooterFastAcceleration",
+            scooterFastAcceleration, "Performance-scooter acceleration, blocks/second^2.",
+            0.1D, 50.0D).getDouble();
         scooterBrakeDeceleration = config.get(CATEGORY_PHYSICS, "scooterBrakeDeceleration",
             scooterBrakeDeceleration, "Scooter braking, blocks/second^2.", 0.1D, 100.0D).getDouble();
         scooterMaxSteerRateDegPerSec = config.get(CATEGORY_PHYSICS, "scooterMaxSteerRateDegPerSec",

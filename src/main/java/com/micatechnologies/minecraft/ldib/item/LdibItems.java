@@ -24,6 +24,9 @@ public final class LdibItems {
     /** The stand-on scooter (Bird / Segway style) — slower, twitchier, standing rider. */
     public static ItemBike scooter;
 
+    /** The performance scooter — same standing scooter, ~22 mph instead of ~12. */
+    public static ItemBike scooterFast;
+
     private LdibItems() {
         throw new AssertionError("No instances.");
     }
@@ -32,15 +35,17 @@ public final class LdibItems {
         bike = LdibRegistry.addItem(new ItemBike(BikeVariant.BICYCLE));
         ebike = LdibRegistry.addItem(new ItemBike(BikeVariant.EBIKE));
         scooter = LdibRegistry.addItem(new ItemBike(BikeVariant.SCOOTER));
+        scooterFast = LdibRegistry.addItem(new ItemBike(BikeVariant.SCOOTER_FAST));
     }
 
     /** The item form of a given variant — used to hand a bike back out of a rack or dock. */
     public static ItemBike forVariant(BikeVariant variant) {
         switch (variant) {
-            case EBIKE:   return ebike;
-            case SCOOTER: return scooter;
+            case EBIKE:        return ebike;
+            case SCOOTER:      return scooter;
+            case SCOOTER_FAST: return scooterFast;
             case BICYCLE:
-            default:      return bike;
+            default:           return bike;
         }
     }
 }

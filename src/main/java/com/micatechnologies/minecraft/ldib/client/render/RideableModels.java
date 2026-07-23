@@ -23,6 +23,6 @@ public final class RideableModels {
 
     /** The model for {@code variant}: the scooter model for scooters, the bike model otherwise. */
     public static ModelRideable forVariant(BikeVariant variant) {
-        return variant == BikeVariant.SCOOTER ? SCOOTER : BIKE;
+        return (variant == BikeVariant.SCOOTER || variant == BikeVariant.SCOOTER_FAST) ? SCOOTER : BIKE;
     }
 }

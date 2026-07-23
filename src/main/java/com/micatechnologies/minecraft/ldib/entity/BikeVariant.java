@@ -23,7 +23,9 @@ public enum BikeVariant {
     BICYCLE(0, "bike", RiderPose.SEATED),
     EBIKE(1, "ebike", RiderPose.SEATED),
     /** A stand-on kick scooter in the spirit of Bird / Segway — same physics stack, standing rider. */
-    SCOOTER(2, "scooter", RiderPose.STANDING);
+    SCOOTER(2, "scooter", RiderPose.STANDING),
+    /** A faster performance scooter (~22 mph vs the standard ~12) — same model, more speed. */
+    SCOOTER_FAST(3, "scooter_fast", RiderPose.STANDING);
 
     private final int id;
     private final String key;
@@ -46,7 +48,7 @@ public enum BikeVariant {
      * only: read by the renderer, never by the physics.
      */
     public boolean hasLights() {
-        return this == EBIKE || this == SCOOTER;
+        return this == EBIKE || this == SCOOTER || this == SCOOTER_FAST;
     }
 
     /** Stable network/NBT id. Never renumber. */
@@ -67,10 +69,11 @@ public enum BikeVariant {
     /** The handling this variant runs with, pulled live from config so retuning needs no code change. */
     public BikeTuning tuning() {
         switch (this) {
-            case EBIKE:   return LdibConfig.eBikeTuning();
-            case SCOOTER: return LdibConfig.scooterTuning();
+            case EBIKE:        return LdibConfig.eBikeTuning();
+            case SCOOTER:      return LdibConfig.scooterTuning();
+            case SCOOTER_FAST: return LdibConfig.scooterFastTuning();
             case BICYCLE:
-            default:      return LdibConfig.bicycleTuning();
+            default:           return LdibConfig.bicycleTuning();
         }
     }
 

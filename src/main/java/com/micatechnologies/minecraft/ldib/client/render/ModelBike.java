@@ -4,29 +4,29 @@ import net.minecraft.client.model.ModelRenderer;
 import net.minecraft.entity.Entity;
 
 /**
- * A deliberately blocky bicycle — two wheels, a frame, a seat and handlebars, all box primitives.
- * This is the MVP "voxel-style" look; a higher-fidelity model (and per-variant models for the
- * e-bike and scooters) is a later phase. All boxes sample a single 64×32 texture, so a flat
- * placeholder skin renders fine until real art exists.
+ * A blocky bicycle with a proper diamond frame and round-ish (12-gon) wheels — two wheels, a
+ * double-triangle frame (down tube, seat tube, top tube, chain stay, seat stay), a fork, stem +
+ * handlebars and a saddle. Still the voxel MVP look, just a recognisable bike rather than a
+ * bike-shaped box; per-variant higher-fidelity art is later.
  *
- * <p><b>Coordinate convention (important — an earlier version of this model rendered underground).</b>
- * {@link RenderBike} draws with the vanilla minecart/boat transform: {@code translate(y + 0.375)}
- * then {@code scale(-1, -1, 1)}, at {@code 0.0625} (1/16) model scale. Under that transform a model
- * coordinate maps to the world as {@code world_y = entity.y + 0.375 − model_y·0.0625}, i.e. <b>+y is
- * down</b> and the wheels touch the ground at {@code model_y = +6}. So the bike is authored around an
- * axle at {@code model_y = 0} (0.375 block above ground = wheel radius), growing <i>upward</i> into
- * <i>negative</i> y toward the seat. Do not use the biped "feet at y = 24" convention here.</p>
- *
- * <p>Units are texture pixels; a 16-pixel span is one block. Wheels are 12 px ≈ 0.75 block.</p>
+ * <p><b>Coordinate convention</b> (see {@link ModelRideable}): {@link RenderBike}'s transform makes
+ * <b>+y point down</b> and the <b>front face −z</b>. Wheels touch the ground at {@code model_y = +6};
+ * the axle sits at {@code model_y = −1} (radius 7). Tyres are 1 px across while the frame tubes are
+ * 2 px, so the wheels are narrower than the frame and their side faces never coincide (no z-fighting).</p>
  */
 public class ModelBike extends ModelRideable {
 
-    private final ModelRenderer rearWheel;
-    private final ModelRenderer frontWheel;
-    private final ModelRenderer frame;
-    private final ModelRenderer seatPost;
-    private final ModelRenderer seat;
+    private final ModelRenderer[] frontWheel;
+    private final ModelRenderer[] rearWheel;
+    private final ModelRenderer downTube;
+    private final ModelRenderer seatTube;
+    private final ModelRenderer topTube;
+    private final ModelRenderer fork;
+    private final ModelRenderer chainStay;
+    private final ModelRenderer seatStay;
+    private final ModelRenderer stem;
     private final ModelRenderer handlebar;
+    private final ModelRenderer saddle;
     private final ModelRenderer headlight;
     private final ModelRenderer brakeLight;
 
@@ -34,63 +34,59 @@ public class ModelBike extends ModelRideable {
         this.textureWidth = 64;
         this.textureHeight = 32;
 
-        // Wheels: thin in X (the axle runs sideways), a 12×12 disc in the Y–Z plane, centred on the
-        // axle at model_y = 0 so wheel-spin (rotateAngleX) turns them in place. Bottom sits at
-        // model_y = +6 → exactly ground level.
-        rearWheel = new ModelRenderer(this, 0, 0);
-        rearWheel.addBox(-1.0F, -6.0F, -6.0F, 2, 12, 12);
-        rearWheel.setRotationPoint(0.0F, 0.0F, -7.0F);
+        // Wheels (radius 7 = 14 px ≈ 0.875 block): front toward −z, rear toward +z. Thin 1 px tyres.
+        frontWheel = buildWheel(-1.0F, -7.0F, 7, 1, 2);
+        rearWheel = buildWheel(-1.0F, 7.0F, 7, 1, 2);
 
-        frontWheel = new ModelRenderer(this, 0, 0);
-        frontWheel.addBox(-1.0F, -6.0F, -6.0F, 2, 12, 12);
-        frontWheel.setRotationPoint(0.0F, 0.0F, 7.0F);
+        // Frame nodes (model space, +y down, front −z):
+        //   bottom bracket BB(+2, 0), head tube HT(−9, −6), seat top ST(−11, +5),
+        //   front axle FA(−1, −7), rear axle RA(−1, +7).
+        downTube = tube(2.0F, 0.0F, -9.0F, -6.0F, 2);   // BB → head tube
+        seatTube = tube(2.0F, 0.0F, -11.0F, 5.0F, 2);   // BB → seat
+        topTube = tube(-9.0F, -6.0F, -11.0F, 5.0F, 2);  // head tube → seat
+        fork = tube(-9.0F, -6.0F, -1.0F, -7.0F, 2);     // head tube → front axle
+        chainStay = tube(2.0F, 0.0F, -1.0F, 7.0F, 2);   // BB → rear axle
+        seatStay = tube(-11.0F, 5.0F, -1.0F, 7.0F, 2);  // seat → rear axle
+        stem = tube(-9.0F, -6.0F, -12.0F, -6.0F, 2);    // head tube → handlebar
 
-        // Frame: a low bar running fore–aft between the wheels, just above the axle line.
-        frame = new ModelRenderer(this, 0, 0);
-        frame.addBox(-1.0F, -1.0F, -8.0F, 2, 2, 16);
-        frame.setRotationPoint(0.0F, -1.0F, 0.0F);
-
-        // Seat post rises from the rear of the frame (upward = negative y).
-        seatPost = new ModelRenderer(this, 0, 0);
-        seatPost.addBox(-1.0F, -8.0F, -1.0F, 2, 8, 2);
-        seatPost.setRotationPoint(0.0F, -2.0F, -6.0F);
-
-        seat = new ModelRenderer(this, 0, 0);
-        seat.addBox(-2.0F, -1.0F, -3.0F, 4, 1, 6);
-        seat.setRotationPoint(0.0F, -10.0F, -6.0F);
-
-        // Handlebars up front.
         handlebar = new ModelRenderer(this, 0, 0);
         handlebar.addBox(-5.0F, -1.0F, -1.0F, 10, 2, 2);
-        handlebar.setRotationPoint(0.0F, -9.0F, 7.0F);
+        handlebar.setRotationPoint(0.0F, -12.0F, -6.0F);
 
-        // Light fixtures (drawn only by renderLights, and only for variants with lights). Front is +z:
-        // headlight just below the handlebars facing forward; brake light high at the rear.
+        saddle = new ModelRenderer(this, 0, 0);
+        saddle.addBox(-1.5F, -1.0F, -3.0F, 3, 1, 6);
+        saddle.setRotationPoint(0.0F, -12.0F, 5.0F);
+
+        // Emissive lights (drawn only by renderLights): headlight at the front (−z), brake at rear (+z).
         headlight = new ModelRenderer(this, 0, 0);
-        headlight.addBox(-1.5F, -8.0F, 8.0F, 3, 2, 1);
+        headlight.addBox(-1.5F, -9.0F, -9.0F, 3, 2, 1);
         headlight.setRotationPoint(0.0F, 0.0F, 0.0F);
 
         brakeLight = new ModelRenderer(this, 0, 0);
-        brakeLight.addBox(-1.5F, -6.0F, -9.0F, 3, 2, 1);
+        brakeLight.addBox(-1.5F, -12.0F, 8.0F, 3, 2, 1);
         brakeLight.setRotationPoint(0.0F, 0.0F, 0.0F);
     }
 
     @Override
     public void render(Entity entity, float limbSwing, float limbSwingAmount, float ageInTicks,
                        float netHeadYaw, float headPitch, float scale) {
-        rearWheel.render(scale);
-        frontWheel.render(scale);
-        frame.render(scale);
-        seatPost.render(scale);
-        seat.render(scale);
+        renderGroup(frontWheel, scale);
+        renderGroup(rearWheel, scale);
+        downTube.render(scale);
+        seatTube.render(scale);
+        topTube.render(scale);
+        fork.render(scale);
+        chainStay.render(scale);
+        seatStay.render(scale);
+        stem.render(scale);
         handlebar.render(scale);
+        saddle.render(scale);
     }
 
-    /** Spin the wheels by {@code wheelAngle} radians — called by the renderer from bike speed. */
     @Override
     public void setWheelSpin(float wheelAngle) {
-        this.rearWheel.rotateAngleX = wheelAngle;
-        this.frontWheel.rotateAngleX = wheelAngle;
+        spinWheel(frontWheel, wheelAngle);
+        spinWheel(rearWheel, wheelAngle);
     }
 
     @Override
