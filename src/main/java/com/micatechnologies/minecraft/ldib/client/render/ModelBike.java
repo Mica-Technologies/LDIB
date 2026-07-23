@@ -75,8 +75,10 @@ public class ModelBike extends ModelRideable {
         seatStay = tube(-11.0F, 5.0F, -1.0F, 7.0F, 2, FRAME_U, FRAME_V);  // seat → rear axle
         stem = tube(-9.0F, -6.0F, -12.0F, -6.0F, 2, FRAME_U, FRAME_V);    // head tube → handlebar
 
+        // Handlebar shrunk ~0.5 px (→ ~1 px) so it is strictly narrower than the 2 px stem it meets,
+        // burying the joint instead of sharing a coplanar face (no z-fighting there).
         handlebar = new ModelRenderer(this, ACCENT_U, ACCENT_V);
-        handlebar.addBox(-5.0F, -1.0F, -1.0F, 10, 2, 2);
+        handlebar.addBox(-5.0F, -1.0F, -1.0F, 10, 2, 2, -0.5F);
         handlebar.setRotationPoint(0.0F, -12.0F, -6.0F);
 
         // Saddle: 4 px wide so it is not coplanar with the 3 px seat lug it sits over.

@@ -30,8 +30,11 @@ public class ModelScooter extends ModelRideable {
     private final ModelRenderer brakeLens;
     private final ModelRenderer brakeGlow;
 
-    /** Thin the stem/handlebars ~33% from 2 px: −0.33 px on each face → ~1.34 px. */
+    /** Thin the stem ~33% from 2 px: −0.33 px on each face → ~1.34 px. */
     private static final float THIN = -0.33F;
+    /** The handlebar is thinner still (~1 px) so it is strictly narrower than the 1.34 px stem it meets
+     *  — their faces never coincide at the joint, so no z-fighting there. */
+    private static final float HANDLEBAR_THIN = -0.5F;
 
     /**
      * @param performance {@code true} for the fast/performance scooter variant (chunkier front head
@@ -62,7 +65,7 @@ public class ModelScooter extends ModelRideable {
         fork = tube(4.0F, -6.0F, 3.0F, -6.0F, 2, FRAME_U, FRAME_V);
 
         handlebar = new ModelRenderer(this, ACCENT_U, ACCENT_V);
-        handlebar.addBox(-5.0F, -1.0F, -1.0F, 10, 2, 2, THIN);
+        handlebar.addBox(-5.0F, -1.0F, -1.0F, 10, 2, 2, HANDLEBAR_THIN);
         handlebar.setRotationPoint(0.0F, -14.0F, -6.0F);
 
         // Bury the stem/fork base overlap so their faces don't fight.
