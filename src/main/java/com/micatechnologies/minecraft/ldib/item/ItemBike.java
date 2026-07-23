@@ -9,7 +9,9 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.util.ActionResult;
 import net.minecraft.util.EnumActionResult;
+import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumHand;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.RayTraceResult;
 import net.minecraft.util.math.Vec3d;
@@ -40,6 +42,27 @@ public class ItemBike extends Item {
     /** The bike variant this item places — read by {@code BlockBikeRack} when locking a bike. */
     public BikeVariant variant() {
         return variant;
+    }
+
+    /**
+     * Right-clicking a bike-share dock with this item <b>stocks</b> the dock (adds a share bike to the
+     * fleet) instead of placing a bike on top of it. This must live here, not in the dock's
+     * {@code onBlockActivated}: sneaking with an item makes vanilla skip block activation and go
+     * straight to the item's use, and sneaking is exactly the setup gesture. Returning SUCCESS also
+     * suppresses {@link #onItemRightClick}, so no loose bike is ever spawned on the dock.
+     */
+    @Override
+    public EnumActionResult onItemUse(EntityPlayer player, World world, BlockPos pos, EnumHand hand,
+                                      EnumFacing facing, float hitX, float hitY, float hitZ) {
+        net.minecraft.block.Block block = world.getBlockState(pos).getBlock();
+        if (block instanceof com.micatechnologies.minecraft.ldib.block.BlockBikeDock) {
+            if (!world.isRemote) {
+                ((com.micatechnologies.minecraft.ldib.block.BlockBikeDock) block)
+                    .stockFromItem(world, pos, player, hand, variant);
+            }
+            return EnumActionResult.SUCCESS;
+        }
+        return EnumActionResult.PASS;
     }
 
     @Override

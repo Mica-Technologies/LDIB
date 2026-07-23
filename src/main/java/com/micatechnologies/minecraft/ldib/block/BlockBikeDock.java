@@ -157,18 +157,8 @@ public class BlockBikeDock extends Block {
             return checkOutFromDock(world, pos, state, player, dock, network);
         }
 
-        // Dock is free.
-        // Op setup: sneak-right-click a free dock with a bike item to stock the fleet with a NEW
-        // public bike-share bike of that variant.
-        if (player.isSneaking() && held.getItem() instanceof ItemBike && canStockFleet(world, player)) {
-            dock.dock(((ItemBike) held.getItem()).variant());
-            if (!player.capabilities.isCreativeMode) {
-                held.shrink(1);
-            }
-            network.bikeReturned();
-            status(player, "Added a bike-share bike to the network.");
-            return true;
-        }
+        // Dock is free. (Stocking a NEW share bike from a held item is handled in ItemBike.onItemUse:
+        // sneaking with an item bypasses onBlockActivated entirely, so it can't live here.)
         // Return a ridden share bike (docks are for the public fleet only).
         if (player.getRidingEntity() instanceof EntityBike) {
             EntityBike bike = (EntityBike) player.getRidingEntity();
@@ -285,6 +275,36 @@ public class BlockBikeDock extends Block {
     private static boolean canStockFleet(World world, EntityPlayer player) {
         net.minecraft.server.MinecraftServer server = world.getMinecraftServer();
         return (server != null && server.isSinglePlayer()) || player.canUseCommand(2, "");
+    }
+
+    /**
+     * Stock this free dock with a share bike of {@code variant} from the player's held item. Called by
+     * {@link com.micatechnologies.minecraft.ldib.item.ItemBike#onItemUse} (the setup gesture is sneak-
+     * right-clicking a dock with a bike item). Server-side.
+     */
+    public void stockFromItem(World world, BlockPos pos, EntityPlayer player,
+                              net.minecraft.util.EnumHand hand, BikeVariant variant) {
+        if (world.isRemote) {
+            return;
+        }
+        TileEntityBikeDock dock = dockTE(world, pos);
+        if (dock == null) {
+            return;
+        }
+        if (dock.isOccupied()) {
+            status(player, "This dock is already occupied.");
+            return;
+        }
+        if (!canStockFleet(world, player)) {
+            status(player, "Only an operator can add bikes to the share network here.");
+            return;
+        }
+        dock.dock(variant);
+        if (!player.capabilities.isCreativeMode) {
+            player.getHeldItem(hand).shrink(1);
+        }
+        BikeShareNetwork.get(world).bikeReturned();
+        status(player, "Added a bike-share bike to the network.");
     }
 
     /** Spawn a checked-out bike in the block in front of the dock, pointing out along its facing. */
