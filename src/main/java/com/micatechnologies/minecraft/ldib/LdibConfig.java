@@ -131,26 +131,42 @@ public final class LdibConfig {
         };
     }
 
-    /** Apply values captured by {@link #captureSyncable()} (same order) into the live fields. */
+    /**
+     * Apply values captured by {@link #captureSyncable()} (same order) into the live fields.
+     *
+     * <p>Reads defensively through {@link #at}: a server running an older LDIB sends a shorter array,
+     * and indexing straight into it would throw inside the login packet handler — turning "the server
+     * has fewer settings than I do" into a failed join. Because the array is <b>append-only</b> by
+     * convention, a short one is a valid prefix, so anything missing simply keeps this client's own
+     * value. Never reorder {@link #captureSyncable()}; that assumption is what makes this safe.</p>
+     */
     public static void applySyncable(double[] v) {
-        maxSpeed = v[0];
-        pedalAcceleration = v[1];
-        brakeDeceleration = v[2];
-        rollingResistance = v[3];
-        airDrag = v[4];
-        maxSteerRateDegPerSec = v[5];
-        steerSpeedFalloff = v[6];
-        physicsSubSteps = (int) v[7];
-        ebikeMaxSpeed = v[8];
-        ebikePedalAcceleration = v[9];
-        scooterMaxSpeed = v[10];
-        scooterAcceleration = v[11];
-        scooterBrakeDeceleration = v[12];
-        scooterMaxSteerRateDegPerSec = v[13];
-        scooterSteerSpeedFalloff = v[14];
-        scooterFastMaxSpeed = v[15];
-        scooterFastAcceleration = v[16];
-        shareStationRadius = (int) v[17];
+        if (v == null) {
+            return;
+        }
+        maxSpeed = at(v, 0, maxSpeed);
+        pedalAcceleration = at(v, 1, pedalAcceleration);
+        brakeDeceleration = at(v, 2, brakeDeceleration);
+        rollingResistance = at(v, 3, rollingResistance);
+        airDrag = at(v, 4, airDrag);
+        maxSteerRateDegPerSec = at(v, 5, maxSteerRateDegPerSec);
+        steerSpeedFalloff = at(v, 6, steerSpeedFalloff);
+        physicsSubSteps = (int) at(v, 7, physicsSubSteps);
+        ebikeMaxSpeed = at(v, 8, ebikeMaxSpeed);
+        ebikePedalAcceleration = at(v, 9, ebikePedalAcceleration);
+        scooterMaxSpeed = at(v, 10, scooterMaxSpeed);
+        scooterAcceleration = at(v, 11, scooterAcceleration);
+        scooterBrakeDeceleration = at(v, 12, scooterBrakeDeceleration);
+        scooterMaxSteerRateDegPerSec = at(v, 13, scooterMaxSteerRateDegPerSec);
+        scooterSteerSpeedFalloff = at(v, 14, scooterSteerSpeedFalloff);
+        scooterFastMaxSpeed = at(v, 15, scooterFastMaxSpeed);
+        scooterFastAcceleration = at(v, 16, scooterFastAcceleration);
+        shareStationRadius = (int) at(v, 17, shareStationRadius);
+    }
+
+    /** {@code v[i]} if the sending server had that value, else {@code fallback} (keep our own). */
+    private static double at(double[] v, int i, double fallback) {
+        return i < v.length ? v[i] : fallback;
     }
 
     /** The pedal-bicycle handling, from the current config values. */

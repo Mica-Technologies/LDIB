@@ -64,6 +64,13 @@ public class EntityBike extends Entity {
     private static final double MAX_MOVE_STEP = 0.25D;
 
     /**
+     * Speed below which a riderless bike counts as parked and skips the handling model. Matches the
+     * threshold {@code BikePhysics} itself uses to decide a bike is too slow to steer, so the two
+     * agree on what "stopped" means.
+     */
+    private static final double IDLE_SPEED = 1.0e-4D;
+
+    /**
      * Radians a wheel turns per block of ground rolled, for pure rolling (no slip): {@code angle =
      * distance / radius}. The modeled wheel radius is ~0.4 blocks (see {@code ModelRideable}), so
      * {@code 1 / 0.4 = 2.5} rad/block.
@@ -295,15 +302,25 @@ public class EntityBike extends Entity {
             this.dataManager.set(BRAKING, throttle < 0.0D);
         }
 
-        int subSteps = Math.max(1, LdibConfig.physicsSubSteps);
-        double dt = LdibConstants.SECONDS_PER_TICK / subSteps;
-        BikeTuning tuning = variant().tuning();
-        BikeState state = new BikeState(this.bikeSpeed, this.rotationYaw);
-        for (int i = 0; i < subSteps; i++) {
-            state = BikePhysics.step(state, throttle, steer, tuning, dt);
+        // A parked bike — nobody aboard, already stopped — would step the model straight back to the
+        // state it is already in: zero speed stays zero under drag, and BikePhysics leaves the heading
+        // untouched below its own speed threshold. Skipping it is therefore behaviourally identical,
+        // and it spares every idle bike in the world the per-tick BikeTuning allocation that
+        // LdibConfig hands out on every call. Every bike ticks, not just ridden ones, so that is the
+        // difference between a stocked share fleet costing nothing and it costing a few hundred
+        // short-lived objects every tick. Gravity and the world move below still run, so a bike whose
+        // ground is mined out still falls.
+        if (controller != null || this.bikeSpeed > IDLE_SPEED) {
+            int subSteps = Math.max(1, LdibConfig.physicsSubSteps);
+            double dt = LdibConstants.SECONDS_PER_TICK / subSteps;
+            BikeTuning tuning = variant().tuning();
+            BikeState state = new BikeState(this.bikeSpeed, this.rotationYaw);
+            for (int i = 0; i < subSteps; i++) {
+                state = BikePhysics.step(state, throttle, steer, tuning, dt);
+            }
+            this.bikeSpeed = state.speed;
+            this.rotationYaw = (float) state.headingDegrees;
         }
-        this.bikeSpeed = state.speed;
-        this.rotationYaw = (float) state.headingDegrees;
 
         // Accumulate wheel spin from distance actually rolled this tick, rather than deriving it from
         // v*t — that way the angle never snaps when speed changes (e.g. braking mid-turn).

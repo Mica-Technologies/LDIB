@@ -16,6 +16,8 @@ import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.RayTraceResult;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
 
 /**
  * The in-inventory bike. Right-clicking places an {@link EntityBike} on the block the player is
@@ -65,6 +67,15 @@ public class ItemBike extends Item {
         return EnumActionResult.PASS;
     }
 
+    /**
+     * The one place a client-only type ({@code ITooltipFlag}) appears in a signature on a class the
+     * dedicated server loads. That is safe — JVM verification is lazy, and vanilla's own
+     * {@code Item.addInformation} is {@code @SideOnly(Side.CLIENT)} so this overrides nothing on a
+     * server and is never called there — but it is safe by accident rather than by declaration. The
+     * annotation makes it deliberate: Forge's side-stripping removes the method outright on a server,
+     * so the unresolvable parameter type can never be reached at all.
+     */
+    @SideOnly(Side.CLIENT)
     @Override
     public void addInformation(ItemStack stack, World world, java.util.List<String> tooltip,
                                net.minecraft.client.util.ITooltipFlag flag) {
