@@ -127,8 +127,10 @@ public class BlockBikeKiosk extends Block {
             BlockPos master = masterPos(state, pos);
             BikeShareNetwork.Session session = BikeShareNetwork.get(world).getSession(player.getUniqueID());
             long startTick = session != null ? session.startTick : 0L;
+            com.micatechnologies.minecraft.ldib.api.ShareTariff tariff =
+                com.micatechnologies.minecraft.ldib.api.BikeShareBilling.activeTariff();
             LdibNetwork.CHANNEL.sendTo(
-                new PacketOpenKiosk(master, session != null, startTick), (EntityPlayerMP) player);
+                new PacketOpenKiosk(master, session != null, startTick, tariff), (EntityPlayerMP) player);
         }
         return true;
     }

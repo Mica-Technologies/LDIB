@@ -2,6 +2,7 @@ package com.micatechnologies.minecraft.ldib.block;
 
 import com.micatechnologies.minecraft.ldib.LdibConfig;
 import com.micatechnologies.minecraft.ldib.api.BikeShareBilling;
+import com.micatechnologies.minecraft.ldib.api.ShareTariff;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.math.BlockPos;
@@ -109,12 +110,21 @@ public final class BikeShareStation {
             status(player, "You already have a bike-share session running.");
             return;
         }
+        ShareTariff tariff = BikeShareBilling.activeTariff();
         if (!BikeShareBilling.active().canCheckOut(player)) {
-            status(player, "You can't start a rental right now (insufficient balance).");
+            status(player, String.format(
+                "You can't start a rental right now — you need at least %.2f to cover the unlock fee.",
+                tariff.unlockFee));
             return;
         }
         network.startSession(player.getUniqueID(), kiosk, world.getTotalWorldTime());
-        status(player, "Checked out — take a bike or scooter from any dock at this station.");
+        if (tariff.isPaid()) {
+            status(player, String.format(
+                "Checked out (unlock fee %.2f) — take a bike or scooter from any dock at this station.",
+                tariff.unlockFee));
+        } else {
+            status(player, "Checked out — take a bike or scooter from any dock at this station.");
+        }
     }
 
     static void status(EntityPlayer player, String message) {

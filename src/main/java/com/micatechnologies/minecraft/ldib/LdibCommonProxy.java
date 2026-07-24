@@ -24,7 +24,8 @@ public class LdibCommonProxy implements LdibProxy {
     }
 
     @Override
-    public void openKioskGui(BlockPos kiosk, boolean hasSession, long startTick) {
+    public void openKioskGui(BlockPos kiosk, boolean hasSession, long startTick,
+                             com.micatechnologies.minecraft.ldib.api.ShareTariff tariff) {
         // No GUI on a dedicated server.
     }
 

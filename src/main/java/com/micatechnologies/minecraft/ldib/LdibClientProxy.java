@@ -66,10 +66,11 @@ public class LdibClientProxy extends LdibCommonProxy {
     }
 
     @Override
-    public void openKioskGui(net.minecraft.util.math.BlockPos kiosk, boolean hasSession, long startTick) {
+    public void openKioskGui(net.minecraft.util.math.BlockPos kiosk, boolean hasSession, long startTick,
+                             com.micatechnologies.minecraft.ldib.api.ShareTariff tariff) {
         net.minecraft.client.Minecraft mc = net.minecraft.client.Minecraft.getMinecraft();
         mc.addScheduledTask(() -> mc.displayGuiScreen(
-            new com.micatechnologies.minecraft.ldib.client.gui.GuiKiosk(kiosk, hasSession, startTick)));
+            new com.micatechnologies.minecraft.ldib.client.gui.GuiKiosk(kiosk, hasSession, startTick, tariff)));
     }
 
     @Override

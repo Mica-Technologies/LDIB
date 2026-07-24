@@ -167,10 +167,11 @@ public class BlockBikeDock extends Block {
                 return true;
             }
             dock.dock(bike.variant());
+            BikeVariant returned = bike.variant();
             bike.removePassengers();
             bike.setDead();
             network.bikeReturned();
-            completeSessionOnReturn(world, player, network);
+            completeSessionOnReturn(world, player, network, returned);
             return true;
         }
         if (held.getItem() instanceof ItemBike) {
@@ -202,7 +203,7 @@ public class BlockBikeDock extends Block {
             BikeVariant variant = dock.undock();
             spawnInFront(world, pos, state, variant);
             network.bikeCheckedOut();
-            network.markBikeTaken(player.getUniqueID());
+            network.markBikeTaken(player.getUniqueID(), world.getTotalWorldTime());
             status(player, "Enjoy your ride — return it at any station dock when you're done.");
             return true;
         }
@@ -219,16 +220,20 @@ public class BlockBikeDock extends Block {
     }
 
     /** If the returning player had an open rental, close it, bill for the minutes, and chat them. */
-    private static void completeSessionOnReturn(World world, EntityPlayer player, BikeShareNetwork network) {
+    private static void completeSessionOnReturn(World world, EntityPlayer player, BikeShareNetwork network,
+                                                BikeVariant variant) {
         BikeShareNetwork.Session session = network.endSession(player.getUniqueID());
         if (session == null) {
             status(player, "Returned your bike to the dock. ("
                 + network.available() + " available in the network)");
             return;
         }
-        long elapsed = Math.max(0L, world.getTotalWorldTime() - session.startTick);
+        // The billing clock runs from when the bike was actually taken, not from kiosk check-out.
+        long clockStart = session.takenTick > 0L ? session.takenTick : session.startTick;
+        long elapsed = Math.max(0L, world.getTotalWorldTime() - clockStart);
         int minutes = (int) Math.max(1L, (elapsed + 1199L) / 1200L); // ceil to whole minutes, min 1
-        double charged = com.micatechnologies.minecraft.ldib.api.BikeShareBilling.active().charge(player, minutes);
+        double charged = com.micatechnologies.minecraft.ldib.api.BikeShareBilling.active()
+            .charge(player, variant, minutes);
         String message = "Your bike-share session is complete — " + minutes
             + (minutes == 1 ? " minute." : " minutes.");
         if (charged > 0.0D) {
@@ -252,13 +257,14 @@ public class BlockBikeDock extends Block {
             return false;
         }
         dock.dock(bike.variant());
+        BikeVariant returned = bike.variant();
         if (bike.isBeingRidden()) {
             bike.removePassengers();
         }
         bike.setDead();
         BikeShareNetwork network = BikeShareNetwork.get(world);
         network.bikeReturned();
-        completeSessionOnReturn(world, player, network);
+        completeSessionOnReturn(world, player, network, returned);
         return true;
     }
 

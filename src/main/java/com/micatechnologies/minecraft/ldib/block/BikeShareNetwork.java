@@ -43,12 +43,15 @@ public class BikeShareNetwork extends WorldSavedData {
         public final long startTick;
         public final BlockPos kiosk;
         public boolean bikeTaken;
+        /** World time the bike was actually taken from a dock; the billing clock starts here (0 until taken). */
+        public long takenTick;
 
-        public Session(UUID player, long startTick, BlockPos kiosk, boolean bikeTaken) {
+        public Session(UUID player, long startTick, BlockPos kiosk, boolean bikeTaken, long takenTick) {
             this.player = player;
             this.startTick = startTick;
             this.kiosk = kiosk;
             this.bikeTaken = bikeTaken;
+            this.takenTick = takenTick;
         }
     }
 
@@ -112,7 +115,7 @@ public class BikeShareNetwork extends WorldSavedData {
 
     /** Start a rental for {@code player}, checked out at {@code kiosk} at {@code startTick}. */
     public void startSession(UUID player, BlockPos kiosk, long startTick) {
-        sessions.put(player, new Session(player, startTick, kiosk, false));
+        sessions.put(player, new Session(player, startTick, kiosk, false, 0L));
         markDirty();
     }
 
@@ -125,11 +128,12 @@ public class BikeShareNetwork extends WorldSavedData {
         return sessions.containsKey(player);
     }
 
-    /** Record that the player has taken their one bike out of a dock this session. */
-    public void markBikeTaken(UUID player) {
+    /** Record that the player has taken their one bike out of a dock this session, at {@code tick}. */
+    public void markBikeTaken(UUID player, long tick) {
         Session s = sessions.get(player);
         if (s != null) {
             s.bikeTaken = true;
+            s.takenTick = tick;
             markDirty();
         }
     }
@@ -155,8 +159,8 @@ public class BikeShareNetwork extends WorldSavedData {
             NBTTagCompound tag = list.getCompoundTagAt(i);
             UUID player = tag.getUniqueId("Player");
             BlockPos kiosk = BlockPos.fromLong(tag.getLong("Kiosk"));
-            sessions.put(player,
-                new Session(player, tag.getLong("Start"), kiosk, tag.getBoolean("BikeTaken")));
+            sessions.put(player, new Session(player, tag.getLong("Start"), kiosk,
+                tag.getBoolean("BikeTaken"), tag.getLong("Taken")));
         }
     }
 
@@ -169,6 +173,7 @@ public class BikeShareNetwork extends WorldSavedData {
             NBTTagCompound tag = new NBTTagCompound();
             tag.setUniqueId("Player", s.player);
             tag.setLong("Start", s.startTick);
+            tag.setLong("Taken", s.takenTick);
             tag.setLong("Kiosk", s.kiosk.toLong());
             tag.setBoolean("BikeTaken", s.bikeTaken);
             list.appendTag(tag);

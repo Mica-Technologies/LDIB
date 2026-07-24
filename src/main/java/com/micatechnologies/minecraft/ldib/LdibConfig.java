@@ -27,10 +27,19 @@ public final class LdibConfig {
     /** Radius (blocks) around a kiosk within which docks belong to its station. */
     public static int shareStationRadius = 8;
 
-    /** Cost per minute of a bike-share rental, in the economy's currency. 0 = free (default). */
-    public static double shareRatePerMinute = 0.0D;
+    /** Flat fee to unlock a bike-share rental, in the economy's currency. 0 = no unlock fee. */
+    public static double shareUnlockFee = 1.0D;
 
-    /** Whether to bill rentals through an installed economy mod (SUM) when {@link #shareRatePerMinute} &gt; 0. */
+    /** Per-minute rate for a pedal bike, in the economy's currency. Default $1 / 5 min. */
+    public static double shareRateBikePerMinute = 0.20D;
+
+    /** Per-minute rate for an e-bike, in the economy's currency. Default $1 / 3 min. */
+    public static double shareRateEbikePerMinute = 1.0D / 3.0D;
+
+    /** Per-minute rate for a scooter (either speed), in the economy's currency. Default $1 / 4 min. */
+    public static double shareRateScooterPerMinute = 0.25D;
+
+    /** Whether to bill rentals through an installed economy mod (SUM) when any fee/rate is &gt; 0. */
     public static boolean shareUseEconomy = true;
 
     /** Top forward speed under pedal power, blocks/second. */
@@ -239,10 +248,16 @@ public final class LdibConfig {
                 + "be billed per minute through an installed economy mod (SUM) — which stays optional.");
         shareStationRadius = config.get(CATEGORY_BIKESHARE, "stationRadius", shareStationRadius,
             "Radius (blocks) around a kiosk within which docks belong to its station.", 1, 64).getInt();
-        shareRatePerMinute = config.get(CATEGORY_BIKESHARE, "ratePerMinute", shareRatePerMinute,
-            "Cost per minute of a rental, in the economy's currency. 0 = free.", 0.0D, 100000.0D).getDouble();
+        shareUnlockFee = config.get(CATEGORY_BIKESHARE, "unlockFee", shareUnlockFee,
+            "Flat fee to unlock a rental, in the economy's currency. 0 = no unlock fee.", 0.0D, 100000.0D).getDouble();
+        shareRateBikePerMinute = config.get(CATEGORY_BIKESHARE, "rateBikePerMinute", shareRateBikePerMinute,
+            "Per-minute rate for a pedal bike. Default $1 / 5 min.", 0.0D, 100000.0D).getDouble();
+        shareRateEbikePerMinute = config.get(CATEGORY_BIKESHARE, "rateEbikePerMinute", shareRateEbikePerMinute,
+            "Per-minute rate for an e-bike. Default $1 / 3 min.", 0.0D, 100000.0D).getDouble();
+        shareRateScooterPerMinute = config.get(CATEGORY_BIKESHARE, "rateScooterPerMinute", shareRateScooterPerMinute,
+            "Per-minute rate for a scooter (either speed). Default $1 / 4 min.", 0.0D, 100000.0D).getDouble();
         shareUseEconomy = config.get(CATEGORY_BIKESHARE, "useEconomy", shareUseEconomy,
-            "Bill rentals through an installed economy mod (SUM) when ratePerMinute > 0.").getBoolean();
+            "Bill rentals through an installed economy mod (SUM) when any fee/rate > 0.").getBoolean();
 
         if (config.hasChanged()) {
             config.save();

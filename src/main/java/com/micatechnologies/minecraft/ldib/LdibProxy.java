@@ -21,7 +21,8 @@ public interface LdibProxy {
      * Open the kiosk screen for the station at {@code kiosk}. Called from the client-bound network
      * packet handler; a no-op on the server so the handler stays side-safe.
      */
-    void openKioskGui(BlockPos kiosk, boolean hasSession, long startTick);
+    void openKioskGui(BlockPos kiosk, boolean hasSession, long startTick,
+                      com.micatechnologies.minecraft.ldib.api.ShareTariff tariff);
 
     /**
      * Apply movement config values pushed from the server on join (client only; a no-op on the

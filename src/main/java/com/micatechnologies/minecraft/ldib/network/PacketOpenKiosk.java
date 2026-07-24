@@ -1,6 +1,7 @@
 package com.micatechnologies.minecraft.ldib.network;
 
 import com.micatechnologies.minecraft.ldib.Ldib;
+import com.micatechnologies.minecraft.ldib.api.ShareTariff;
 import io.netty.buffer.ByteBuf;
 import net.minecraft.util.math.BlockPos;
 import net.minecraftforge.fml.common.network.simpleimpl.IMessage;
@@ -19,14 +20,16 @@ public class PacketOpenKiosk implements IMessage {
     private BlockPos kiosk;
     private boolean hasSession;
     private long startTick;
+    private ShareTariff tariff;
 
     public PacketOpenKiosk() {
     }
 
-    public PacketOpenKiosk(BlockPos kiosk, boolean hasSession, long startTick) {
+    public PacketOpenKiosk(BlockPos kiosk, boolean hasSession, long startTick, ShareTariff tariff) {
         this.kiosk = kiosk;
         this.hasSession = hasSession;
         this.startTick = startTick;
+        this.tariff = tariff;
     }
 
     @Override
@@ -34,6 +37,7 @@ public class PacketOpenKiosk implements IMessage {
         this.kiosk = BlockPos.fromLong(buf.readLong());
         this.hasSession = buf.readBoolean();
         this.startTick = buf.readLong();
+        this.tariff = ShareTariff.fromBytes(buf);
     }
 
     @Override
@@ -41,12 +45,13 @@ public class PacketOpenKiosk implements IMessage {
         buf.writeLong(kiosk.toLong());
         buf.writeBoolean(hasSession);
         buf.writeLong(startTick);
+        tariff.toBytes(buf);
     }
 
     public static class Handler implements IMessageHandler<PacketOpenKiosk, IMessage> {
         @Override
         public IMessage onMessage(PacketOpenKiosk msg, MessageContext ctx) {
-            Ldib.proxy.openKioskGui(msg.kiosk, msg.hasSession, msg.startTick);
+            Ldib.proxy.openKioskGui(msg.kiosk, msg.hasSession, msg.startTick, msg.tariff);
             return null;
         }
     }
