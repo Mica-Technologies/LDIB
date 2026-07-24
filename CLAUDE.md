@@ -89,10 +89,20 @@ are presentation only and are never synced.
 ### Mixins — deferred
 
 `usesMixins = false`. The MVP needs no coremod: a rider-controlled vehicle is entirely public-hook
-territory. The first thing that may justify a mixin is client-side camera lean / a first-person
-handlebar view. When that lands, flip `usesMixins` on, set `coreModClass` + `mixinsPackage`, and
-restore the `reobfJar` manifest guard that RCMC/SUM carry (`addon.gradle` already has the guarded
-`MixinConfigs` manifest hook). Until then, don't add a coremod.
+territory.
+
+**Camera lean was the presumed first coremod. It wasn't one.** Forge's
+`EntityViewRenderEvent.CameraSetup` carries a **roll** field that `EntityRenderer` applies as a Z-axis
+rotation immediately after firing the event, so `client/RiderCamera` leans the rider's view with no
+mixin at all (the sibling RCMC rolls its coaster riders the same way). That is a real win rather than a
+technicality — a mixin on the camera path is prime territory for conflicts with Optifine and shader
+mods. Before writing a coremod for anything, **check for a Forge event first**; this one was hiding in
+plain sight in a sibling repo.
+
+What remains a genuine coremod candidate is the **first-person handlebar view**: moving the camera's
+*position* has no public 1.12.2 hook the way its rotation does. If that lands, flip `usesMixins` on, set
+`coreModClass` + `mixinsPackage`, and restore the `reobfJar` manifest guard that RCMC/SUM carry
+(`addon.gradle` already has the guarded `MixinConfigs` manifest hook). Until then, don't add a coremod.
 
 ## Conventions
 

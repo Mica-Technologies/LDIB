@@ -16,8 +16,8 @@ import net.minecraftforge.fml.common.event.FMLPreInitializationEvent;
 import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 
 /**
- * Client-side proxy. Entity renderers, item-model binding and (later) the ride camera all get
- * installed from here.
+ * Client-side proxy. Entity renderers, item-model binding and the ride camera all get installed
+ * from here.
  *
  * <p>This class and everything it reaches may reference {@code net.minecraft.client}. Nothing
  * outside {@code LdibClientProxy}'s reachable graph may — a single stray client import in common
@@ -38,6 +38,7 @@ public class LdibClientProxy extends LdibCommonProxy {
         MinecraftForge.EVENT_BUS.register(new RideHud());
         MinecraftForge.EVENT_BUS.register(new com.micatechnologies.minecraft.ldib.client.hud.GrabPromptHud());
         MinecraftForge.EVENT_BUS.register(new com.micatechnologies.minecraft.ldib.client.RiderPoseHandler());
+        MinecraftForge.EVENT_BUS.register(new com.micatechnologies.minecraft.ldib.client.RiderCamera());
         MinecraftForge.EVENT_BUS.register(
             new com.micatechnologies.minecraft.ldib.client.sound.RideableSoundHandler());
         com.micatechnologies.minecraft.ldib.client.LdibKeyHandler.register();

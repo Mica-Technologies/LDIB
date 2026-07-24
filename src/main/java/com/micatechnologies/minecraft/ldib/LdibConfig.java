@@ -117,6 +117,14 @@ public final class LdibConfig {
     /** Whether the live speed readout is drawn while riding. Pure convenience; never synced. */
     public static boolean enableRideHud = true;
 
+    /**
+     * How much of the bike's lean the rider's camera copies, {@code 0} (level horizon) to {@code 1}
+     * (the full model lean). Presentation only and never synced — camera roll is a motion-sickness
+     * trigger for some players, so this is exactly the kind of setting that must stay per-player.
+     * Defaults to partial: enough to feel the turn, well short of the model's full 22°.
+     */
+    public static double cameraLeanStrength = 0.55D;
+
     private static Configuration config;
 
     private LdibConfig() {
@@ -315,6 +323,10 @@ public final class LdibConfig {
 
         enableRideHud = config.get(CATEGORY_CLIENT, "enableRideHud", enableRideHud,
             "Show the live speed readout while riding.").getBoolean();
+        cameraLeanStrength = config.get(CATEGORY_CLIENT, "cameraLeanStrength", cameraLeanStrength,
+            "How much of the bike's lean the rider's camera copies (0 = level horizon, 1 = full "
+                + "lean). Camera roll causes motion sickness for some players; 0 disables it.",
+            0.0D, 1.0D).getDouble();
 
         config.addCustomCategoryComment(CATEGORY_BIKESHARE,
             "Bike-share stations. A kiosk plus the docks within its radius form a station; rentals can "
