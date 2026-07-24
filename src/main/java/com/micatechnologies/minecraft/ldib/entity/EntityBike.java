@@ -15,8 +15,11 @@ import net.minecraft.network.datasync.DataParameter;
 import net.minecraft.network.datasync.DataSerializers;
 import net.minecraft.network.datasync.EntityDataManager;
 import net.minecraft.util.EnumHand;
+import net.minecraft.util.EnumFacing;
 import net.minecraft.util.math.AxisAlignedBB;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
 
 /**
@@ -106,6 +109,30 @@ public class EntityBike extends Entity {
      *  presentational and never fed into physics; read by {@code RenderBike}. */
     private float bikeSteer;
     private float prevBikeSteer;
+
+    /**
+     * A rider who left the saddle last tick and whose landing spot still needs checking, or
+     * {@code null}. Server-side only and one-shot: see {@link #rescueStuckDismount()} for why the
+     * check cannot happen at the moment they dismount.
+     */
+    private Entity pendingDismount;
+
+    /**
+     * Candidate dismount spots in the bike's own frame, as {@code {alongForward, alongRight}} block
+     * offsets, in the order they are tried. Sideways first — you step off a bike to the side, and it
+     * is also the direction least likely to be blocked by whatever the bike is parked against — then
+     * the diagonals, then straight back/front, then one ring wider. Mirrors the intent of vanilla's
+     * own dismount search, which this only ever runs <i>after</i>, as a rescue.
+     */
+    private static final int[][] DISMOUNT_OFFSETS = {
+        {0, 1}, {0, -1},
+        {-1, 1}, {-1, -1}, {1, 1}, {1, -1},
+        {-1, 0}, {1, 0},
+        {0, 2}, {0, -2}, {-2, 0}, {2, 0},
+    };
+
+    /** Vertical offsets tried within each candidate column: step up one, level, then down a short drop. */
+    private static final int[] DISMOUNT_HEIGHTS = {1, 0, -1, -2, -3};
 
     public EntityBike(World world) {
         super(world);
@@ -285,6 +312,11 @@ public class EntityBike extends Entity {
     public void onUpdate() {
         super.onUpdate();
 
+        // Someone got off last tick: vanilla has now chosen their spot, so it can be vetted.
+        if (this.pendingDismount != null) {
+            rescueStuckDismount();
+        }
+
         double throttle = 0.0D;
         double steer = 0.0D;
         Entity controller = getControllingPassenger();
@@ -395,6 +427,97 @@ public class EntityBike extends Entity {
     @Override
     public boolean shouldDismountInWater(Entity rider) {
         return false;
+    }
+
+    // --- Dismount placement ------------------------------------------------------------------
+
+    /**
+     * Note that this rider has just left the saddle, so their landing spot can be checked next tick.
+     *
+     * <p>The check cannot happen here. Vanilla runs the dismount in a fixed order:
+     * {@code EntityLivingBase.dismountRidingEntity()} calls {@code super}, which is what invokes
+     * <i>this</i> method, and only <b>afterwards</b> calls {@code dismountEntity(vehicle)} to choose
+     * where the rider ends up. Anything positioned here is overwritten a few frames of execution
+     * later, so the rescue has to wait until vanilla has had its turn.</p>
+     */
+    @Override
+    protected void removePassenger(Entity passenger) {
+        super.removePassenger(passenger);
+        if (!this.world.isRemote && passenger instanceof EntityPlayer) {
+            this.pendingDismount = passenger;
+        }
+    }
+
+    /**
+     * Move a rider who vanilla dropped inside the world geometry to somewhere they can actually stand.
+     *
+     * <p>Vanilla's {@code EntityLivingBase.dismountEntity} searches nine spots around the vehicle and
+     * places the rider at the first that is clear and has solid ground — which is good behaviour, and
+     * is left alone whenever it works. What it does <i>not</i> do is check its own last resort: if
+     * every candidate is blocked it falls through to the vehicle's own position with no collision test
+     * at all, which is how you end up standing in a wall after parking a bike in a tight spot. A bike
+     * is 1 block tall and its rider is 1.8, so it can be ridden into gaps that cannot be dismounted
+     * into — this mod hits that fallback more readily than vanilla's own rideables do.</p>
+     *
+     * <p>So: only act when the rider is genuinely stuck, and then search a wider ring than vanilla
+     * does. Server-side only — the resulting {@code setPositionAndUpdate} teleports the client.</p>
+     */
+    private void rescueStuckDismount() {
+        Entity rider = this.pendingDismount;
+        this.pendingDismount = null; // one shot, whatever the outcome
+        if (rider == null || rider.isDead || rider.isRiding()) {
+            return;
+        }
+        // Vanilla found somewhere legitimate — leave it be. Only its unchecked fallback is a problem.
+        if (!this.world.collidesWithAnyBlock(rider.getEntityBoundingBox())) {
+            return;
+        }
+        Vec3d spot = findDismountSpot(rider);
+        if (spot != null) {
+            rider.setPositionAndUpdate(spot.x, spot.y, spot.z);
+        }
+    }
+
+    /**
+     * The first spot around this bike where {@code rider} fits and has something to stand on, or
+     * {@code null} if the bike is buried deeply enough that there is nowhere to put them.
+     */
+    private Vec3d findDismountSpot(Entity rider) {
+        AxisAlignedBB riderBox = rider.getEntityBoundingBox();
+        double halfWidth = (riderBox.maxX - riderBox.minX) / 2.0D;
+        double height = riderBox.maxY - riderBox.minY;
+
+        // The bike's own frame: forward is where it points, right is 90° clockwise of that.
+        double yawRad = Math.toRadians(this.rotationYaw);
+        double forwardX = -Math.sin(yawRad);
+        double forwardZ = Math.cos(yawRad);
+        double rightX = Math.cos(yawRad);
+        double rightZ = Math.sin(yawRad);
+
+        for (int[] offset : DISMOUNT_OFFSETS) {
+            double x = this.posX + forwardX * offset[0] + rightX * offset[1];
+            double z = this.posZ + forwardZ * offset[0] + rightZ * offset[1];
+            for (int dy : DISMOUNT_HEIGHTS) {
+                double y = Math.floor(this.posY) + dy;
+                AxisAlignedBB candidate = new AxisAlignedBB(
+                    x - halfWidth, y, z - halfWidth,
+                    x + halfWidth, y + height, z + halfWidth);
+                if (this.world.collidesWithAnyBlock(candidate)) {
+                    continue;
+                }
+                if (hasFooting(x, y, z)) {
+                    return new Vec3d(x, y, z);
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Whether there is a solid top face (or liquid — better a swim than a fall) directly below. */
+    private boolean hasFooting(double x, double y, double z) {
+        BlockPos below = new BlockPos(x, y - 0.5D, z);
+        net.minecraft.block.state.IBlockState state = this.world.getBlockState(below);
+        return state.isSideSolid(this.world, below, EnumFacing.UP) || state.getMaterial().isLiquid();
     }
 
     // --- Persistence -------------------------------------------------------------------------
