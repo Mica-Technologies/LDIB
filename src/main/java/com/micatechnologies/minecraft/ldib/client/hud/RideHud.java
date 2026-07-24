@@ -39,12 +39,25 @@ public class RideHud {
             return;
         }
 
-        double blocksPerSecond = ((EntityBike) vehicle).speed();
+        EntityBike bike = (EntityBike) vehicle;
+        double blocksPerSecond = bike.speed();
         double mph = blocksPerSecond * MPS_TO_MPH;
         String text = String.format("%.1f mph  (%.1f blocks/s)", mph, blocksPerSecond);
         ScaledResolution res = new ScaledResolution(mc);
         int x = res.getScaledWidth() / 2 - mc.fontRenderer.getStringWidth(text) / 2;
         int y = res.getScaledHeight() - 55;
         mc.fontRenderer.drawStringWithShadow(text, x, y, 0xFFFFFF);
+
+        // On a powered rideable, the charge sits under the speed — it is the other number that
+        // decides how the next minute of riding goes, and once it drops under the reserve the bike
+        // will start feeling slower whether or not the rider knows why.
+        if (bike.variant().hasBattery()) {
+            double charge = bike.charge();
+            String battery = String.format("Battery %d%%", Math.round(charge * 100.0D));
+            int colour = charge <= 0.0D ? 0xFF5555
+                : (charge < LdibConfig.batteryReserveFraction ? 0xFFAA00 : 0x55FF55);
+            int bx = res.getScaledWidth() / 2 - mc.fontRenderer.getStringWidth(battery) / 2;
+            mc.fontRenderer.drawStringWithShadow(battery, bx, y + 10, colour);
+        }
     }
 }

@@ -92,6 +92,53 @@ public enum BikeVariant {
         return LdibConfig.bicycleTuning();
     }
 
+    /**
+     * Whether this variant runs off a battery. The powered ones do; a pedal bicycle obviously does
+     * not, and asking it for a charge always reports full so nothing downstream needs to special-case
+     * it. Deliberately the same set as {@link #hasLights()} today, but kept as its own question —
+     * "has a motor" and "has lamps" are different facts that happen to coincide, and a dynamo-lit
+     * pedal bike or an unlit e-bike would split them.
+     */
+    public boolean hasBattery() {
+        return this == EBIKE || this == SCOOTER || this == SCOOTER_FAST;
+    }
+
+    /**
+     * Blocks this variant travels under power on a full charge, from config; {@code 0} means the
+     * battery is disabled and the variant always runs at full assist.
+     */
+    public double rangeBlocks() {
+        if (this == EBIKE) {
+            return LdibConfig.ebikeRangeBlocks;
+        }
+        if (this == SCOOTER) {
+            return LdibConfig.scooterRangeBlocks;
+        }
+        if (this == SCOOTER_FAST) {
+            return LdibConfig.scooterFastRangeBlocks;
+        }
+        return 0.0D;
+    }
+
+    /**
+     * How this variant handles with a flat battery — the {@code unpowered} end that
+     * {@link BikeTuning#withAssist} interpolates from.
+     *
+     * <p>A dead e-bike is just a (heavy) bicycle: it falls back to the pedal-bike numbers, so you can
+     * always ride home under your own legs. A dead scooter has no legs to fall back on, so it gets its
+     * own slow kick-along tuning rather than the bicycle's — being stranded is not a fun mechanic, but
+     * neither is a flat scooter that still does 22 mph.</p>
+     */
+    public BikeTuning unpoweredTuning() {
+        if (this == EBIKE) {
+            return LdibConfig.bicycleTuning();
+        }
+        if (this == SCOOTER || this == SCOOTER_FAST) {
+            return LdibConfig.scooterKickTuning();
+        }
+        return tuning();
+    }
+
     /** Resolve a persisted/synced id back to a variant, defaulting to {@link #BICYCLE} if unknown. */
     public static BikeVariant byId(int id) {
         for (BikeVariant v : values()) {

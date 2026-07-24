@@ -58,6 +58,35 @@ public final class BikeTuning {
     }
 
     /**
+     * This tuning with its motor assist scaled back toward {@code unpowered} — what a powered
+     * rideable actually handles like at a given battery level.
+     *
+     * <p>Only {@link #maxSpeed} and {@link #pedalAcceleration} are interpolated, because those are the
+     * only two things a motor contributes. A flat battery does not change your brakes, your rolling
+     * resistance or how sharply you can turn, so those come from this tuning unchanged — blending them
+     * too would quietly make a low battery <i>handle</i> differently, which is not what "the assist
+     * cut out" means.</p>
+     *
+     * <p>At {@code assist == 1} the result is this tuning; at {@code assist == 0} it is
+     * {@code unpowered}'s speed and acceleration. So a dead e-bike rides like the pedal bicycle it is
+     * built on — you can still get home, just under your own legs.</p>
+     *
+     * @param unpowered the handling with no assist at all
+     * @param assist    {@code [0, 1]}, from {@link BatteryModel#assist}
+     */
+    public BikeTuning withAssist(BikeTuning unpowered, double assist) {
+        double t = assist < 0.0D ? 0.0D : (assist > 1.0D ? 1.0D : assist);
+        return new BikeTuning(
+            unpowered.maxSpeed + (this.maxSpeed - unpowered.maxSpeed) * t,
+            unpowered.pedalAcceleration + (this.pedalAcceleration - unpowered.pedalAcceleration) * t,
+            this.brakeDeceleration,
+            this.rollingResistance,
+            this.airDrag,
+            this.maxSteerRateDegPerSec,
+            this.steerSpeedFalloff);
+    }
+
+    /**
      * A reasonable pedal-bicycle feel. Used as the MVP default and as the baseline the test suite
      * pins behaviour against; e-bike and scooter variants adjust from here.
      */

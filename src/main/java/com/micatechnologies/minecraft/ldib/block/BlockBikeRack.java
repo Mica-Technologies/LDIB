@@ -282,6 +282,15 @@ public class BlockBikeRack extends Block {
         super.breakBlock(world, pos, state);
     }
 
+    /**
+     * Hand a locked bike back to its owner — <b>fully charged</b>. A rack stores a variant and an
+     * owner, not a battery level, and the stack it builds here carries no charge tag, which
+     * {@code ItemBike.chargeOf} reads as full. That is deliberate rather than an oversight: a rack is
+     * where you park your own bike at home, so it doubles as the charger, and it gives powered
+     * variants the recharge path they need without a rack having to tick or track time. The trade is
+     * that a bike locked and immediately unlocked is also topped up; a timer would be more truthful
+     * and worse to play.
+     */
     private static void giveBike(EntityPlayer player, BikeVariant variant) {
         ItemStack stack = new ItemStack(LdibItems.forVariant(variant));
         if (!player.inventory.addItemStackToInventory(stack)) {

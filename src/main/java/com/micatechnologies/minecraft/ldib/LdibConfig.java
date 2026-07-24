@@ -90,6 +90,24 @@ public final class LdibConfig {
     /** Speed (blocks/s) at which scooter steering authority has halved. Lower = twitchier at speed. */
     public static double scooterSteerSpeedFalloff = 3.5D;
 
+    /** Blocks an e-bike travels under power on a full charge. 0 disables the battery entirely. */
+    public static double ebikeRangeBlocks = 6000.0D;
+
+    /** Blocks a standard scooter travels under power on a full charge. 0 disables the battery. */
+    public static double scooterRangeBlocks = 4000.0D;
+
+    /** Blocks a performance scooter travels on a charge — fast and thirsty, so a shorter range. */
+    public static double scooterFastRangeBlocks = 3000.0D;
+
+    /** Charge fraction below which motor assist starts fading toward nothing. 0 = cut out abruptly. */
+    public static double batteryReserveFraction = 0.15D;
+
+    /** Top speed of a scooter with a flat battery — you can still kick it along. Blocks/second. */
+    public static double scooterKickMaxSpeed = 2.2D;
+
+    /** Acceleration of a scooter with a flat battery, blocks/second². Kicking is slow work. */
+    public static double scooterKickAcceleration = 2.0D;
+
     /**
      * Physics sub-steps per game tick. One 50 ms step is coarse for steering; sub-stepping is the
      * cheap fix and costs integrator time only, never bandwidth.
@@ -128,6 +146,8 @@ public final class LdibConfig {
             scooterMaxSteerRateDegPerSec, scooterSteerSpeedFalloff,
             scooterFastMaxSpeed, scooterFastAcceleration,
             shareStationRadius,
+            ebikeRangeBlocks, scooterRangeBlocks, scooterFastRangeBlocks, batteryReserveFraction,
+            scooterKickMaxSpeed, scooterKickAcceleration,
         };
     }
 
@@ -162,6 +182,12 @@ public final class LdibConfig {
         scooterFastMaxSpeed = at(v, 15, scooterFastMaxSpeed);
         scooterFastAcceleration = at(v, 16, scooterFastAcceleration);
         shareStationRadius = (int) at(v, 17, shareStationRadius);
+        ebikeRangeBlocks = at(v, 18, ebikeRangeBlocks);
+        scooterRangeBlocks = at(v, 19, scooterRangeBlocks);
+        scooterFastRangeBlocks = at(v, 20, scooterFastRangeBlocks);
+        batteryReserveFraction = at(v, 21, batteryReserveFraction);
+        scooterKickMaxSpeed = at(v, 22, scooterKickMaxSpeed);
+        scooterKickAcceleration = at(v, 23, scooterKickAcceleration);
     }
 
     /** {@code v[i]} if the sending server had that value, else {@code fallback} (keep our own). */
@@ -203,6 +229,16 @@ public final class LdibConfig {
      */
     public static BikeTuning scooterFastTuning() {
         return new BikeTuning(scooterFastMaxSpeed, scooterFastAcceleration, scooterBrakeDeceleration,
+            rollingResistance, airDrag, scooterMaxSteerRateDegPerSec, scooterSteerSpeedFalloff);
+    }
+
+    /**
+     * A scooter with a flat battery: kick-along speed and acceleration, with the powered scooter's
+     * brakes and (twitchy) steering unchanged — a dead battery costs you the motor, not the wheels.
+     * This is the {@code unpowered} end of {@link BikeTuning#withAssist} for both scooter variants.
+     */
+    public static BikeTuning scooterKickTuning() {
+        return new BikeTuning(scooterKickMaxSpeed, scooterKickAcceleration, scooterBrakeDeceleration,
             rollingResistance, airDrag, scooterMaxSteerRateDegPerSec, scooterSteerSpeedFalloff);
     }
 
@@ -255,6 +291,27 @@ public final class LdibConfig {
         scooterSteerSpeedFalloff = config.get(CATEGORY_PHYSICS, "scooterSteerSpeedFalloff",
             scooterSteerSpeedFalloff, "Speed (blocks/s) at which scooter steering authority has halved.",
             0.1D, 60.0D).getDouble();
+
+        ebikeRangeBlocks = config.get(CATEGORY_PHYSICS, "ebikeRangeBlocks", ebikeRangeBlocks,
+            "Blocks an e-bike travels under power on a full charge. 0 disables the battery entirely.",
+            0.0D, 1000000.0D).getDouble();
+        scooterRangeBlocks = config.get(CATEGORY_PHYSICS, "scooterRangeBlocks", scooterRangeBlocks,
+            "Blocks a scooter travels under power on a full charge. 0 disables the battery.",
+            0.0D, 1000000.0D).getDouble();
+        scooterFastRangeBlocks = config.get(CATEGORY_PHYSICS, "scooterFastRangeBlocks",
+            scooterFastRangeBlocks,
+            "Blocks a performance scooter travels on a full charge. 0 disables the battery.",
+            0.0D, 1000000.0D).getDouble();
+        batteryReserveFraction = config.get(CATEGORY_PHYSICS, "batteryReserveFraction",
+            batteryReserveFraction,
+            "Charge fraction below which motor assist fades toward nothing. 0 = cut out abruptly.",
+            0.0D, 1.0D).getDouble();
+        scooterKickMaxSpeed = config.get(CATEGORY_PHYSICS, "scooterKickMaxSpeed", scooterKickMaxSpeed,
+            "Top speed of a scooter with a flat battery (kicking it along), blocks/second.",
+            0.1D, 60.0D).getDouble();
+        scooterKickAcceleration = config.get(CATEGORY_PHYSICS, "scooterKickAcceleration",
+            scooterKickAcceleration,
+            "Acceleration of a scooter with a flat battery, blocks/second^2.", 0.1D, 50.0D).getDouble();
 
         enableRideHud = config.get(CATEGORY_CLIENT, "enableRideHud", enableRideHud,
             "Show the live speed readout while riding.").getBoolean();

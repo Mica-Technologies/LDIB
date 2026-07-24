@@ -2,6 +2,7 @@ package com.micatechnologies.minecraft.ldib.entity;
 
 import com.micatechnologies.minecraft.ldib.LdibConfig;
 import com.micatechnologies.minecraft.ldib.LdibConstants;
+import com.micatechnologies.minecraft.ldib.physics.BatteryModel;
 import com.micatechnologies.minecraft.ldib.physics.BikePhysics;
 import com.micatechnologies.minecraft.ldib.physics.BikeState;
 import com.micatechnologies.minecraft.ldib.physics.BikeTuning;
@@ -58,8 +59,27 @@ public class EntityBike extends Entity {
     private static final DataParameter<Boolean> SHARE =
         EntityDataManager.createKey(EntityBike.class, DataSerializers.BOOLEAN);
 
+    /**
+     * Battery charge, {@code 0}–{@code 1}, for the powered variants. Synced because it changes
+     * <b>movement results</b> — a rider whose client thought the battery was full would predict a
+     * faster bike than the server is simulating and rubber-band, exactly the failure the config sync
+     * exists to prevent. Always {@code 1} on a pedal bicycle, which has no battery to run down.
+     */
+    private static final DataParameter<Float> CHARGE =
+        EntityDataManager.createKey(EntityBike.class, DataSerializers.FLOAT);
+
     /** Forward ground speed in blocks/second — the one state variable the physics model owns. */
     private double bikeSpeed;
+
+    /**
+     * The server's running charge, at full precision. {@link #CHARGE} carries a deliberately coarser
+     * copy: a ridden bike drains a little every tick, and syncing every one of those would be a
+     * data-watcher packet per bike per tick for a number nobody can see move that finely.
+     */
+    private double chargeExact = BatteryModel.FULL;
+
+    /** How far {@link #chargeExact} must drift from the synced value before it is worth a packet. */
+    private static final double CHARGE_SYNC_STEP = 0.005D;
 
     /** Max horizontal distance (blocks) any single {@link #move} sub-step covers; the per-tick move is
      *  split into ceil(perTick / this) small steps for accurate collision at speed. 0.25 = 1-2 steps at
@@ -156,6 +176,27 @@ public class EntityBike extends Entity {
         this.dataManager.register(VARIANT, BikeVariant.BICYCLE.id());
         this.dataManager.register(BRAKING, false);
         this.dataManager.register(SHARE, false);
+        this.dataManager.register(CHARGE, (float) BatteryModel.FULL);
+    }
+
+    /**
+     * Battery charge, {@code 0} (flat) to {@code 1} (full); always {@code 1} on a variant with no
+     * battery.
+     *
+     * <p>This is the <b>synced</b> value, and the handling model reads it on both sides on purpose.
+     * The server's {@link #chargeExact} is finer, but if the two sides ran the physics off different
+     * numbers the client's prediction would drift from the server's simulation — the same reason the
+     * physics config is synced at all. Both sides agreeing on a slightly coarse charge beats each
+     * being precisely right about a different one.</p>
+     */
+    public double charge() {
+        return this.dataManager.get(CHARGE);
+    }
+
+    /** Set the charge (server-side; clamped), pushing it to clients immediately. */
+    public void setCharge(double charge) {
+        this.chargeExact = BatteryModel.clamp(charge);
+        this.dataManager.set(CHARGE, (float) this.chargeExact);
     }
 
     /** This bike's variant — drives both its handling ({@link BikeVariant#tuning()}) and its look. */
@@ -257,9 +298,14 @@ public class EntityBike extends Entity {
         return false;
     }
 
-    /** Hand this bike to {@code player} as an item (inventory if room, else dropped at their feet). */
+    /**
+     * Hand this bike to {@code player} as an item (inventory if room, else dropped at their feet).
+     * The battery goes with it — pocketing a half-flat e-bike and putting it back down must not
+     * quietly top it up, or the charge would mean nothing.
+     */
     public void giveAsItem(EntityPlayer player) {
         ItemStack stack = new ItemStack(LdibItems.forVariant(variant()));
+        com.micatechnologies.minecraft.ldib.item.ItemBike.setCharge(stack, charge());
         if (!player.inventory.addItemStackToInventory(stack)) {
             player.dropItem(stack, false);
         }
@@ -308,6 +354,34 @@ public class EntityBike extends Entity {
 
     // --- Simulation --------------------------------------------------------------------------
 
+    /**
+     * The handling to run this tick: the variant's tuning, scaled back toward its unpowered self by
+     * whatever assist the battery can still deliver. A variant with no battery — or one whose range is
+     * configured to 0, disabling the whole mechanic — gets its tuning untouched.
+     */
+    private BikeTuning assistedTuning() {
+        BikeVariant variant = variant();
+        BikeTuning powered = variant.tuning();
+        if (!variant.hasBattery() || variant.rangeBlocks() <= 0.0D) {
+            return powered;
+        }
+        double assist = BatteryModel.assist(charge(), LdibConfig.batteryReserveFraction);
+        return powered.withAssist(variant.unpoweredTuning(), assist);
+    }
+
+    /**
+     * Spend charge for {@code distanceBlocks} covered under power, syncing only once the change is
+     * big enough to be worth a packet (or the battery has just gone flat, which riders should see the
+     * instant it happens because the bike is about to feel different).
+     */
+    private void drainBattery(double distanceBlocks) {
+        this.chargeExact = BatteryModel.drain(this.chargeExact, distanceBlocks, variant().rangeBlocks());
+        if (Math.abs(this.chargeExact - this.dataManager.get(CHARGE)) >= CHARGE_SYNC_STEP
+            || this.chargeExact <= BatteryModel.EMPTY) {
+            this.dataManager.set(CHARGE, (float) this.chargeExact);
+        }
+    }
+
     @Override
     public void onUpdate() {
         super.onUpdate();
@@ -337,21 +411,27 @@ public class EntityBike extends Entity {
         // A parked bike — nobody aboard, already stopped — would step the model straight back to the
         // state it is already in: zero speed stays zero under drag, and BikePhysics leaves the heading
         // untouched below its own speed threshold. Skipping it is therefore behaviourally identical,
-        // and it spares every idle bike in the world the per-tick BikeTuning allocation that
-        // LdibConfig hands out on every call. Every bike ticks, not just ridden ones, so that is the
-        // difference between a stocked share fleet costing nothing and it costing a few hundred
-        // short-lived objects every tick. Gravity and the world move below still run, so a bike whose
-        // ground is mined out still falls.
+        // and it spares every idle bike in the world a per-tick BikeTuning allocation (two on a
+        // powered variant, which also builds an unpowered baseline to blend against). Every bike
+        // ticks, not just ridden ones, so that is the difference between a stocked share fleet costing
+        // nothing and it costing a few hundred short-lived objects every tick. Gravity and the world
+        // move below still run, so a bike whose ground is mined out still falls.
         if (controller != null || this.bikeSpeed > IDLE_SPEED) {
             int subSteps = Math.max(1, LdibConfig.physicsSubSteps);
             double dt = LdibConstants.SECONDS_PER_TICK / subSteps;
-            BikeTuning tuning = variant().tuning();
+            BikeTuning tuning = assistedTuning();
             BikeState state = new BikeState(this.bikeSpeed, this.rotationYaw);
             for (int i = 0; i < subSteps; i++) {
                 state = BikePhysics.step(state, throttle, steer, tuning, dt);
             }
             this.bikeSpeed = state.speed;
             this.rotationYaw = (float) state.headingDegrees;
+        }
+
+        // Spend battery for the distance just covered under power. Server-side only: the synced charge
+        // is the truth, and a client running down its own copy would only race the server's.
+        if (!this.world.isRemote && throttle > 0.0D && variant().hasBattery()) {
+            drainBattery(this.bikeSpeed * LdibConstants.SECONDS_PER_TICK);
         }
 
         // Accumulate wheel spin from distance actually rolled this tick, rather than deriving it from
@@ -528,6 +608,7 @@ public class EntityBike extends Entity {
         compound.setBoolean("Share", isShare());
         compound.setFloat("Yaw", this.rotationYaw);
         compound.setDouble("Speed", this.bikeSpeed);
+        compound.setDouble("Charge", this.chargeExact);
     }
 
     @Override
@@ -536,6 +617,8 @@ public class EntityBike extends Entity {
         this.dataManager.set(SHARE, compound.getBoolean("Share"));
         this.rotationYaw = compound.getFloat("Yaw");
         this.bikeSpeed = compound.getDouble("Speed");
+        // A bike saved before batteries existed has no tag; it comes back charged rather than flat.
+        setCharge(compound.hasKey("Charge") ? compound.getDouble("Charge") : BatteryModel.FULL);
     }
 
     /** Current forward speed in blocks/second — read by the renderer for wheel spin. */

@@ -1,9 +1,11 @@
 package com.micatechnologies.minecraft.ldib.item;
 
+import com.micatechnologies.minecraft.ldib.LdibConfig;
 import com.micatechnologies.minecraft.ldib.LdibConstants;
 import com.micatechnologies.minecraft.ldib.LdibTab;
 import com.micatechnologies.minecraft.ldib.entity.BikeVariant;
 import com.micatechnologies.minecraft.ldib.entity.EntityBike;
+import com.micatechnologies.minecraft.ldib.physics.BatteryModel;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
@@ -46,6 +48,56 @@ public class ItemBike extends Item {
         return variant;
     }
 
+    // --- Battery on the stack ----------------------------------------------------------------
+    //
+    // A pocketed bike keeps its charge, so the charge has to live on the ItemStack between being
+    // picked up and put back down. ABSENCE OF THE TAG MEANS FULL, which is what makes every other
+    // path correct for free: a crafted bike, a creative-tab bike, one unlocked from a rack (racks
+    // charge — you plug your e-bike in at home) and one dispensed from a share dock all arrive with
+    // no tag and therefore a full battery, with no code of their own.
+
+    /** NBT key holding a stack's battery charge, {@code 0}–{@code 1}. */
+    private static final String CHARGE_TAG = "Charge";
+
+    /** The charge on this stack, or a full one if it carries no battery tag. */
+    public static double chargeOf(ItemStack stack) {
+        net.minecraft.nbt.NBTTagCompound tag = stack.getTagCompound();
+        if (tag == null || !tag.hasKey(CHARGE_TAG)) {
+            return BatteryModel.FULL;
+        }
+        return BatteryModel.clamp(tag.getDouble(CHARGE_TAG));
+    }
+
+    /** Stamp a charge onto this stack. A full charge writes no tag, keeping fresh bikes stackable-clean. */
+    public static void setCharge(ItemStack stack, double charge) {
+        double clamped = BatteryModel.clamp(charge);
+        if (clamped >= BatteryModel.FULL) {
+            if (stack.hasTagCompound()) {
+                stack.getTagCompound().removeTag(CHARGE_TAG);
+            }
+            return;
+        }
+        if (!stack.hasTagCompound()) {
+            stack.setTagCompound(new net.minecraft.nbt.NBTTagCompound());
+        }
+        stack.getTagCompound().setDouble(CHARGE_TAG, clamped);
+    }
+
+    /**
+     * Show the charge as the vanilla durability bar. It is the one at-a-glance readout the inventory
+     * already has, so a part-charged e-bike reads correctly without any new HUD or model work; a
+     * variant with no battery never draws one.
+     */
+    @Override
+    public boolean showDurabilityBar(ItemStack stack) {
+        return variant.hasBattery() && chargeOf(stack) < BatteryModel.FULL;
+    }
+
+    @Override
+    public double getDurabilityForDisplay(ItemStack stack) {
+        return 1.0D - chargeOf(stack);
+    }
+
     /**
      * Right-clicking a bike-share dock with this item <b>stocks</b> the dock (adds a share bike to the
      * fleet) instead of placing a bike on top of it. This must live here, not in the dock's
@@ -79,6 +131,13 @@ public class ItemBike extends Item {
     @Override
     public void addInformation(ItemStack stack, World world, java.util.List<String> tooltip,
                                net.minecraft.client.util.ITooltipFlag flag) {
+        if (variant.hasBattery()) {
+            double charge = chargeOf(stack);
+            // Amber below the reserve, red when flat — the same warning the handling is about to give.
+            String colour = charge <= 0.0D ? "§c" : (charge < LdibConfig.batteryReserveFraction ? "§6" : "§a");
+            tooltip.add("§7Battery: " + colour + Math.round(charge * 100.0D) + "%");
+            tooltip.add("§8Lock it to a rack to charge it.");
+        }
         tooltip.add("§7Right-click the ground to place and ride.");
         tooltip.add("§7Sneak-right-click or hit it to pick it back up.");
         tooltip.add("§7Ride up to a rack or dock and right-click to park it.");
@@ -106,6 +165,7 @@ public class ItemBike extends Item {
 
         if (!world.isRemote) {
             EntityBike bike = new EntityBike(world, variant);
+            bike.setCharge(chargeOf(stack));
             bike.setPositionAndRotation(
                 ray.hitVec.x, ray.hitVec.y, ray.hitVec.z, player.rotationYaw, 0.0F);
             if (!world.getCollisionBoxes(bike, bike.getEntityBoundingBox().grow(-0.1D)).isEmpty()) {
