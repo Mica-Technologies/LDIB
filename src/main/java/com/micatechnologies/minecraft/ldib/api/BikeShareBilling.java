@@ -63,10 +63,21 @@ public interface BikeShareBilling {
         @Override
         public double charge(EntityPlayer player, BikeVariant variant, int minutes) {
             double cost = ShareTariff.fromConfig().totalFor(variant, minutes);
-            if (cost > 0.0D) {
-                SumEconomy.adjustBalance(player, -cost);
+            if (cost <= 0.0D) {
+                return 0.0D;
             }
-            return cost;
+            // Post-paid: the fee is only known at return, so a long ride can outrun the balance that
+            // covered the unlock fee at check-out. Honour SUM's overdraft policy — if it refuses the
+            // full charge, take whatever is left so the ride still pays what it can, and report the
+            // amount ACTUALLY charged so the return message doesn't claim money that never moved.
+            if (SumEconomy.adjustBalance(player, -cost)) {
+                return cost;
+            }
+            double balance = Math.max(0.0D, SumEconomy.getBalance(player));
+            if (balance > 0.0D && SumEconomy.adjustBalance(player, -balance)) {
+                return balance;
+            }
+            return 0.0D;
         }
     };
 }

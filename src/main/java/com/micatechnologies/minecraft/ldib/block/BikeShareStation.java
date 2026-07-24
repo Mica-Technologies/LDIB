@@ -110,6 +110,13 @@ public final class BikeShareStation {
             status(player, "You already have a bike-share session running.");
             return;
         }
+        // Don't open a (billable) session at a station with nothing to ride — the fleet is bounded by
+        // the bikes physically docked here, so read that ground truth rather than a separate counter
+        // that could drift. This is the "can't check out when none free" rule from the master plan.
+        if (countBikesAvailable(world, kiosk) <= 0) {
+            status(player, "No bikes available at this station right now — try another station.");
+            return;
+        }
         ShareTariff tariff = BikeShareBilling.activeTariff();
         if (!BikeShareBilling.active().canCheckOut(player)) {
             status(player, String.format(
