@@ -1,7 +1,7 @@
 {
   "textures": {
-    "particle": "ldib:blocks/rack_grid",
-    "rack": "ldib:blocks/rack_grid"
+    "particle": "ldib:blocks/rack_classic",
+    "rack": "ldib:blocks/rack_classic"
   },
   "elements": [
     {
@@ -38,12 +38,12 @@
     },
     {
       "from": [
-        0,
-        9,
+        2.7,
+        1,
         7
       ],
       "to": [
-        15,
+        3.7,
         10,
         9
       ],
@@ -70,13 +70,13 @@
     },
     {
       "from": [
-        4.2,
-        1,
+        0,
+        9,
         7
       ],
       "to": [
-        6.2,
-        9,
+        3.7,
+        10,
         9
       ],
       "faces": {
@@ -102,13 +102,77 @@
     },
     {
       "from": [
-        13,
+        7.9,
         1,
         7
       ],
       "to": [
-        15,
+        8.9,
+        10,
+        9
+      ],
+      "faces": {
+        "down": {
+          "texture": "#rack"
+        },
+        "up": {
+          "texture": "#rack"
+        },
+        "north": {
+          "texture": "#rack"
+        },
+        "south": {
+          "texture": "#rack"
+        },
+        "west": {
+          "texture": "#rack"
+        },
+        "east": {
+          "texture": "#rack"
+        }
+      }
+    },
+    {
+      "from": [
+        11.9,
+        1,
+        7
+      ],
+      "to": [
+        12.9,
+        10,
+        9
+      ],
+      "faces": {
+        "down": {
+          "texture": "#rack"
+        },
+        "up": {
+          "texture": "#rack"
+        },
+        "north": {
+          "texture": "#rack"
+        },
+        "south": {
+          "texture": "#rack"
+        },
+        "west": {
+          "texture": "#rack"
+        },
+        "east": {
+          "texture": "#rack"
+        }
+      }
+    },
+    {
+      "from": [
+        7.9,
         9,
+        7
+      ],
+      "to": [
+        12.9,
+        10,
         9
       ],
       "faces": {

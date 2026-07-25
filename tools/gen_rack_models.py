@@ -25,7 +25,7 @@ Emits, for each 3-long style:
 
 Deliberately does NOT touch ``bike_rack_<style>.json`` (the original 1-block model): the ITEM model
 parents to it, and a compact one-block rack is the right inventory icon -- a 3-block structure cannot
-be shown in a slot. The 1-long styles (hoop, post, classic) are left alone.
+be shown in a slot. The 1-long styles (hoop, post, classic) are correct as-is and are left alone.
 """
 
 import json
@@ -48,16 +48,32 @@ def box(x0, x1, y0, y1, z0=7.0, z1=9.0):
     return {"x": (x0, x1), "y": (y0, y1), "z": (z0, z1)}
 
 
+# --- Wave profile. All four are pixels; tweak here and regenerate rather than editing the JSON. ---
+WAVE_RAIL_TOP = 1.0     # top of the continuous base rail
+WAVE_FOOT_TOP = 4.0     # feet rise from the rail to the low course
+WAVE_LOW = (4.0, 5.0)   # the low course of the undulating bar
+WAVE_HIGH = (9.0, 10.0) # the high course
+WAVE_STEP = 4.0         # run length of each half-wave; smaller = more, tighter undulations
+
+
 def wave_elements():
     """An undulating bar over the full run: six shallow waves, on feet, on a continuous base rail.
 
-    The bar alternates between a low course (y 3..4) and a high one (y 6..7) every 4 px, joined by
-    1 px uprights -- the same proportions as the original single-block model, just continued across
-    all three blocks instead of compressed into one.
-    """
-    els = [box(END_INSET, SPAN - END_INSET, 0.0, 1.0)]  # base rail, full span
+    The bar alternates between a low course and a high one every ``WAVE_STEP`` px, joined by 1 px
+    uprights -- the original single-block model's shape, continued across all three blocks instead of
+    compressed into one.
 
-    step = 4.0
+    Raised 2026-07-25 at the owner's request ("should stretch a bit taller"): the crest was at 7 px
+    (0.44 block), which read as squat once the rack had three blocks of run to spread across. It now
+    tops out at 10 px (0.63 block), matching the grid rack's top rail so the two wide styles agree.
+    NOTE: that is slightly above ``BlockBikeRack.RACK_AABB``, which is 0.6 tall on purpose -- 0.6 is
+    exactly the vanilla step height, so a rack stays step-over-able. The crest poking a couple of
+    pixels above the collision box is the deliberate trade (grid already did this); raising the AABB
+    to match would silently make every rack a wall.
+    """
+    els = [box(END_INSET, SPAN - END_INSET, 0.0, WAVE_RAIL_TOP)]  # base rail, full span
+
+    step = WAVE_STEP
     boundaries = [i * step for i in range(int(SPAN / step) + 1)]  # 0,4,...,48
     lows = []
     for i in range(len(boundaries) - 1):
@@ -66,37 +82,112 @@ def wave_elements():
         if x1 - x0 <= 0:
             continue
         high = (i % 2 == 0)
-        els.append(box(x0, x1, 6.0, 7.0) if high else box(x0, x1, 3.0, 4.0))
+        els.append(box(x0, x1, *(WAVE_HIGH if high else WAVE_LOW)))
         if not high:
             lows.append((x0, x1))
 
     # Uprights bridging low course to high course at every interior boundary. One of these straddles
     # x=16 and another x=32; clipping splits each into two abutting halves.
     for b in boundaries[1:-1]:
-        els.append(box(b - 0.5, b + 0.5, 3.0, 7.0))
+        els.append(box(b - 0.5, b + 0.5, WAVE_LOW[0], WAVE_HIGH[1]))
 
     # Short feet under each low course, so the wave looks supported rather than floating.
     for x0, x1 in lows:
         c = (x0 + x1) / 2.0
-        els.append(box(c - 0.5, c + 0.5, 1.0, 3.0))
+        els.append(box(c - 0.5, c + 0.5, WAVE_RAIL_TOP, WAVE_FOOT_TOP))
 
     return els
+
+
+# --- Grid profile. A framed rack of open wheel slots. ---
+GRID_SLOTS = 5          # must match the number of Slots on RackStyle.GRID
+GRID_POST_W = 2.0       # width of the end uprights and the dividers between slots
+GRID_RAIL_TOP = 1.0     # top of the base rail
+GRID_TOP_RAIL = (9.0, 10.0)
+
+
+def grid_layout():
+    """Divider/upright x-ranges and the resulting slot centres, in pixels across the full run.
+
+    Returns ``(posts, slot_centres)``. The slot centres are what ``RackStyle.GRID``'s Slots have to
+    agree with -- see ``grid_elements`` for why.
+    """
+    lo, hi = END_INSET, SPAN - END_INSET
+    n_posts = GRID_SLOTS + 1                                    # one each end, one between each pair
+    slot_w = ((hi - lo) - n_posts * GRID_POST_W) / GRID_SLOTS
+    posts, centres = [], []
+    x = lo
+    for i in range(n_posts):
+        posts.append((x, x + GRID_POST_W))
+        x += GRID_POST_W
+        if i < GRID_SLOTS:
+            centres.append(x + slot_w / 2.0)
+            x += slot_w
+    return posts, centres
 
 
 def grid_elements():
-    """A wide floor rail: top and bottom rails with evenly repeating uprights every 2 px."""
+    """A framed rack of open wheel slots: two continuous rails, closed ends, dividers between slots.
+
+    Redesigned 2026-07-25. The previous version was a picket fence -- 1 px uprights at a 2 px pitch,
+    24 of them across the run. That is uniformly periodic, which made it *look identical* whether it
+    was tiled correctly across three blocks or (as the bug did) drawn three times over: there is no
+    large-scale shape for the eye to measure the rack against, so it read as a squished 1x1 pattern
+    repeated even once the geometry was right. The owner reported exactly that.
+
+    So the composition, not the tiling, is the fix: a handful of wide dividers framing five open slots
+    spans the whole rack visibly, and each slot obviously belongs to one bike.
+
+    The slot centres this produces MUST match ``RackStyle.GRID``'s Slots, or dividers will cut straight
+    through parked bikes. The script prints them for exactly that reason -- keep the two in step.
+    """
+    posts, _ = grid_layout()
     els = [
-        box(END_INSET, SPAN - END_INSET, 0.0, 1.0),   # base rail
-        box(END_INSET, SPAN - END_INSET, 9.0, 10.0),  # top rail
+        box(END_INSET, SPAN - END_INSET, 0.0, GRID_RAIL_TOP),   # base rail, full span
+        box(END_INSET, SPAN - END_INSET, *GRID_TOP_RAIL),       # top rail, full span
     ]
-    x = 2.0
-    while x + 1.0 <= SPAN - END_INSET:
-        els.append(box(x, x + 1.0, 1.0, 9.0))
-        x += 2.0
+    for x0, x1 in posts:
+        els.append(box(x0, x1, GRID_RAIL_TOP, GRID_TOP_RAIL[0]))
     return els
 
 
-STYLES = {"wave": wave_elements, "grid": grid_elements}
+# --- Classic profile. A toast rack: a row of inverted-U arches, one wheel slotted into each. ---
+CLASSIC_ARCHES = 5      # must match the number of Slots on RackStyle.CLASSIC
+CLASSIC_ARCH_W = 5.0    # outer width of one arch
+CLASSIC_BAR = 1.0       # thickness of the uprights and the arch's top bar
+CLASSIC_TOP = (9.0, 10.0)
+
+
+def classic_layout():
+    """Arch centres in pixels across the full run. A bike parks *inside* each arch, so these are also
+    the slot centres ``RackStyle.CLASSIC`` must use."""
+    lo, hi = END_INSET, SPAN - END_INSET
+    pitch = (hi - lo) / CLASSIC_ARCHES
+    return [lo + pitch * (i + 0.5) for i in range(CLASSIC_ARCHES)]
+
+
+def classic_elements():
+    """A continuous base rail carrying evenly spaced inverted-U arches.
+
+    Widened to three blocks 2026-07-25 at the owner's request. It keeps the single-block model's
+    character exactly -- 1 px uprights joined by a top bar at y 9..10, a wheel slotted into each U --
+    there are simply five arches spread across the full run instead of three crammed into one block.
+    """
+    els = [box(END_INSET, SPAN - END_INSET, 0.0, 1.0)]  # base rail, full span
+    half = CLASSIC_ARCH_W / 2.0
+    for c in classic_layout():
+        left, right = c - half, c + half
+        els.append(box(left, left + CLASSIC_BAR, 1.0, CLASSIC_TOP[1]))    # upright
+        els.append(box(right - CLASSIC_BAR, right, 1.0, CLASSIC_TOP[1]))  # upright
+        els.append(box(left, right, *CLASSIC_TOP))                        # top bar of the U
+    return els
+
+
+STYLES = {"wave": wave_elements, "grid": grid_elements, "classic": classic_elements}
+
+# Styles whose Java-side Slot positions are dictated by the generated geometry. Printed at the end of
+# a run so RackStyle can be kept in step; see the note in main().
+SLOT_LAYOUTS = {"grid": lambda: grid_layout()[1], "classic": classic_layout}
 
 
 def clip_to_part(els, part):
@@ -164,6 +255,17 @@ def main():
             write(os.path.join(models, "bike_rack_%s_%d.json" % (style, part)),
                   model_json(style, part_els))
         write(os.path.join(states, "bike_rack_%s.json" % style), blockstate_json(style))
+
+    # Some slots are load-bearing on the Java side too: a grid bike has to sit in the gap between two
+    # dividers, and a classic bike inside an arch. Get those wrong and the geometry cuts through parked
+    # bikes. Print them so a mismatch is obvious the moment a layout is retuned.
+    print("\nRackStyle Slot `along` values dictated by this geometry:")
+    for style in sorted(SLOT_LAYOUTS):
+        centres = SLOT_LAYOUTS[style]()
+        alongs = [c / BLOCK - 0.5 for c in centres]  # px across the run -> blocks from master's centre
+        print("  %-8s px %s" % (style, ", ".join("%.2f" % c for c in centres)))
+        print("  %-8s -> new Slot(%s, 0.0F, 0.0F)"
+              % ("", "F), new Slot(".join("%.4g" % a for a in alongs)))
 
 
 if __name__ == "__main__":

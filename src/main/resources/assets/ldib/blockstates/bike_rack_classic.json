@@ -1,49 +1,49 @@
 {
   "variants": {
+    "facing=east,part=0": {
+      "model": "ldib:bike_rack_classic_0"
+    },
+    "facing=east,part=1": {
+      "model": "ldib:bike_rack_classic_1"
+    },
+    "facing=east,part=2": {
+      "model": "ldib:bike_rack_classic_2"
+    },
     "facing=south,part=0": {
-      "model": "ldib:bike_rack_classic",
+      "model": "ldib:bike_rack_classic_0",
       "y": 90
     },
     "facing=south,part=1": {
-      "model": "ldib:bike_rack_classic",
+      "model": "ldib:bike_rack_classic_1",
       "y": 90
     },
     "facing=south,part=2": {
-      "model": "ldib:bike_rack_classic",
+      "model": "ldib:bike_rack_classic_2",
       "y": 90
     },
     "facing=west,part=0": {
-      "model": "ldib:bike_rack_classic",
+      "model": "ldib:bike_rack_classic_0",
       "y": 180
     },
     "facing=west,part=1": {
-      "model": "ldib:bike_rack_classic",
+      "model": "ldib:bike_rack_classic_1",
       "y": 180
     },
     "facing=west,part=2": {
-      "model": "ldib:bike_rack_classic",
+      "model": "ldib:bike_rack_classic_2",
       "y": 180
     },
     "facing=north,part=0": {
-      "model": "ldib:bike_rack_classic",
+      "model": "ldib:bike_rack_classic_0",
       "y": 270
     },
     "facing=north,part=1": {
-      "model": "ldib:bike_rack_classic",
+      "model": "ldib:bike_rack_classic_1",
       "y": 270
     },
     "facing=north,part=2": {
-      "model": "ldib:bike_rack_classic",
+      "model": "ldib:bike_rack_classic_2",
       "y": 270
-    },
-    "facing=east,part=0": {
-      "model": "ldib:bike_rack_classic"
-    },
-    "facing=east,part=1": {
-      "model": "ldib:bike_rack_classic"
-    },
-    "facing=east,part=2": {
-      "model": "ldib:bike_rack_classic"
     }
   }
 }

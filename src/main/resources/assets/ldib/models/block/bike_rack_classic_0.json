@@ -1,17 +1,17 @@
 {
   "textures": {
-    "particle": "ldib:blocks/rack_grid",
-    "rack": "ldib:blocks/rack_grid"
+    "particle": "ldib:blocks/rack_classic",
+    "rack": "ldib:blocks/rack_classic"
   },
   "elements": [
     {
       "from": [
-        0,
+        1,
         0,
         7
       ],
       "to": [
-        15,
+        16,
         1,
         9
       ],
@@ -38,12 +38,12 @@
     },
     {
       "from": [
-        0,
-        9,
+        3.1,
+        1,
         7
       ],
       "to": [
-        15,
+        4.1,
         10,
         9
       ],
@@ -70,13 +70,13 @@
     },
     {
       "from": [
-        4.2,
+        7.1,
         1,
         7
       ],
       "to": [
-        6.2,
-        9,
+        8.1,
+        10,
         9
       ],
       "faces": {
@@ -102,13 +102,77 @@
     },
     {
       "from": [
-        13,
+        3.1,
+        9,
+        7
+      ],
+      "to": [
+        8.1,
+        10,
+        9
+      ],
+      "faces": {
+        "down": {
+          "texture": "#rack"
+        },
+        "up": {
+          "texture": "#rack"
+        },
+        "north": {
+          "texture": "#rack"
+        },
+        "south": {
+          "texture": "#rack"
+        },
+        "west": {
+          "texture": "#rack"
+        },
+        "east": {
+          "texture": "#rack"
+        }
+      }
+    },
+    {
+      "from": [
+        12.3,
         1,
         7
       ],
       "to": [
-        15,
+        13.3,
+        10,
+        9
+      ],
+      "faces": {
+        "down": {
+          "texture": "#rack"
+        },
+        "up": {
+          "texture": "#rack"
+        },
+        "north": {
+          "texture": "#rack"
+        },
+        "south": {
+          "texture": "#rack"
+        },
+        "west": {
+          "texture": "#rack"
+        },
+        "east": {
+          "texture": "#rack"
+        }
+      }
+    },
+    {
+      "from": [
+        12.3,
         9,
+        7
+      ],
+      "to": [
+        16,
+        10,
         9
       ],
       "faces": {
