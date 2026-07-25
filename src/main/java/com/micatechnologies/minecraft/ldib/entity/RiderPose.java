@@ -9,6 +9,10 @@ package com.micatechnologies.minecraft.ldib.entity;
  */
 public enum RiderPose {
 
+    // Both offsets are owner-verified in-game (2026-07-25) across all four variants — the standing one
+    // started as a guess and rode correctly on both scooters, so treat these as settled rather than
+    // placeholder numbers.
+
     /** Seated on a saddle (bicycle, e-bike). */
     SEATED(0.45D, true),
 
