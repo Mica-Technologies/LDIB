@@ -5,42 +5,236 @@
   },
   "elements": [
     {
-      "__comment": "base pad",
-      "from": [2, 0, 2],
-      "to": [14, 1, 14],
+      "from": [
+        1,
+        0,
+        2
+      ],
+      "to": [
+        15,
+        1,
+        14
+      ],
       "faces": {
-        "down": { "texture": "#dock" },
-        "up": { "texture": "#dock" },
-        "north": { "texture": "#dock" },
-        "south": { "texture": "#dock" },
-        "west": { "texture": "#dock" },
-        "east": { "texture": "#dock" }
+        "down": {
+          "texture": "#dock"
+        },
+        "up": {
+          "texture": "#dock"
+        },
+        "north": {
+          "texture": "#dock"
+        },
+        "south": {
+          "texture": "#dock"
+        },
+        "west": {
+          "texture": "#dock"
+        },
+        "east": {
+          "texture": "#dock"
+        }
       }
     },
     {
-      "__comment": "central bollard",
-      "from": [6, 1, 6],
-      "to": [10, 9, 10],
+      "from": [
+        10,
+        1,
+        4
+      ],
+      "to": [
+        15,
+        13,
+        12
+      ],
       "faces": {
-        "down": { "texture": "#dock" },
-        "up": { "texture": "#dock" },
-        "north": { "texture": "#dock" },
-        "south": { "texture": "#dock" },
-        "west": { "texture": "#dock" },
-        "east": { "texture": "#dock" }
+        "down": {
+          "texture": "#dock"
+        },
+        "up": {
+          "texture": "#dock"
+        },
+        "north": {
+          "texture": "#dock"
+        },
+        "south": {
+          "texture": "#dock"
+        },
+        "west": {
+          "texture": "#dock"
+        },
+        "east": {
+          "texture": "#dock"
+        }
       }
     },
     {
-      "__comment": "front wheel-clip arm, toward +X (facing=east default)",
-      "from": [10, 2, 7],
-      "to": [14, 6, 9],
+      "from": [
+        9,
+        13,
+        4
+      ],
+      "to": [
+        15,
+        14,
+        12
+      ],
+      "rotation": {
+        "origin": [
+          12,
+          13,
+          8
+        ],
+        "axis": "z",
+        "angle": -22.5
+      },
       "faces": {
-        "down": { "texture": "#dock" },
-        "up": { "texture": "#dock" },
-        "north": { "texture": "#dock" },
-        "south": { "texture": "#dock" },
-        "west": { "texture": "#dock" },
-        "east": { "texture": "#dock" }
+        "down": {
+          "texture": "#dock"
+        },
+        "up": {
+          "texture": "#dock"
+        },
+        "north": {
+          "texture": "#dock"
+        },
+        "south": {
+          "texture": "#dock"
+        },
+        "west": {
+          "texture": "#dock"
+        },
+        "east": {
+          "texture": "#dock"
+        }
+      }
+    },
+    {
+      "from": [
+        6,
+        1,
+        6
+      ],
+      "to": [
+        7,
+        7,
+        10
+      ],
+      "faces": {
+        "down": {
+          "texture": "#dock"
+        },
+        "up": {
+          "texture": "#dock"
+        },
+        "north": {
+          "texture": "#dock"
+        },
+        "south": {
+          "texture": "#dock"
+        },
+        "west": {
+          "texture": "#dock"
+        },
+        "east": {
+          "texture": "#dock"
+        }
+      }
+    },
+    {
+      "from": [
+        9,
+        1,
+        6
+      ],
+      "to": [
+        10,
+        7,
+        10
+      ],
+      "faces": {
+        "down": {
+          "texture": "#dock"
+        },
+        "up": {
+          "texture": "#dock"
+        },
+        "north": {
+          "texture": "#dock"
+        },
+        "south": {
+          "texture": "#dock"
+        },
+        "west": {
+          "texture": "#dock"
+        },
+        "east": {
+          "texture": "#dock"
+        }
+      }
+    },
+    {
+      "from": [
+        6,
+        1,
+        6
+      ],
+      "to": [
+        10,
+        2,
+        10
+      ],
+      "faces": {
+        "down": {
+          "texture": "#dock"
+        },
+        "up": {
+          "texture": "#dock"
+        },
+        "north": {
+          "texture": "#dock"
+        },
+        "south": {
+          "texture": "#dock"
+        },
+        "west": {
+          "texture": "#dock"
+        },
+        "east": {
+          "texture": "#dock"
+        }
+      }
+    },
+    {
+      "from": [
+        7,
+        4,
+        7
+      ],
+      "to": [
+        9,
+        5,
+        9
+      ],
+      "faces": {
+        "down": {
+          "texture": "#dock"
+        },
+        "up": {
+          "texture": "#dock"
+        },
+        "north": {
+          "texture": "#dock"
+        },
+        "south": {
+          "texture": "#dock"
+        },
+        "west": {
+          "texture": "#dock"
+        },
+        "east": {
+          "texture": "#dock"
+        }
       }
     }
   ]

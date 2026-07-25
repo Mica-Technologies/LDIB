@@ -44,7 +44,17 @@ public class BlockBikeDock extends Block {
 
     public static final PropertyDirection FACING = BlockHorizontal.FACING;
 
-    private static final AxisAlignedBB DOCK_AABB = new AxisAlignedBB(0.1D, 0.0D, 0.1D, 0.9D, 0.5D, 0.9D);
+    /**
+     * Matches the pedestal the model actually draws: the full base plate footprint, and tall enough to
+     * cover the body (14px) rather than stopping half way up it.
+     *
+     * <p>This is deliberately <b>above</b> the 0.6 vanilla step height, unlike {@code BlockBikeRack},
+     * whose box stops at exactly 0.6 so a low rack stays step-over-able. A share dock is a waist-high
+     * pedestal — walking through the top of one, or stepping over a row of them, is the wrong
+     * behaviour, and real ones block you.</p>
+     */
+    private static final AxisAlignedBB DOCK_AABB =
+        new AxisAlignedBB(0.0625D, 0.0D, 0.0625D, 0.9375D, 0.875D, 0.9375D);
 
     public BlockBikeDock() {
         super(Material.IRON);
