@@ -3,18 +3,31 @@
 A Minecraft **1.12.2 Forge** mod that adds **rider-controlled bikes**: mount one and pedal, brake
 and steer it with WASD, using the vanilla riding mechanic rather than a retextured pig or minecart.
 
-The first release is a single blocky, voxel-style **bicycle** done properly — real acceleration,
-coasting, braking and speed-dependent steering. Planned from there: a couple of bike models,
-**e-bike** variants, and dockless-scooter rideables in the spirit of **Bird** and **Lime**. The
-scope stays deliberately focused: a handful of rideables that feel good, not a general vehicle
+Four rideables, each blocky and voxel-style and each done properly — real acceleration, coasting,
+braking and speed-dependent steering:
+
+- a **bicycle** and a faster **e-bike**
+- a **scooter** (~12 mph) and a **performance scooter** (~22 mph), ridden standing
+
+Plus the infrastructure around them: **owner-locked bike racks** in five styles (multi-block, and they
+show the bikes parked on them), and a **bike-share network** of docks and kiosks where you check a bike
+out at one station and return it at any other — optionally billed per minute through an installed
+economy mod. Powered variants carry a **battery** that runs down and fades the assist as it empties.
+
+The scope stays deliberately focused: a handful of rideables that feel good, not a general vehicle
 framework.
 
-> **Status: pre-alpha.** The repository is scaffolded, **`./gradlew build` is green** (compiles
-> against Forge 1.12.2, all handling-model unit tests pass, jar produced), and a first rideable
-> vertical slice (item → entity → renderer) is in place. It has **not yet been run in-game** — the
-> next step is a `runClient` play-test to tune the renderer and confirm the ride. See
-> `docs/AGENT-PLANS/MASTER_PLAN.md` (local only, gitignored) for the phased roadmap and the exact
-> "done / not done" state.
+> **Status: alpha — released and playable.** Latest release **`2026.07.24`**; the ride, the racks, the
+> share network and the visuals are all confirmed working in-game. `./gradlew build` is green (Forge
+> 1.12.2, 33 unit tests, jar produced) and CI additionally boots a real dedicated server on every PR.
+>
+> Rough edges are visual rather than structural — several model positions and offsets are first cuts
+> awaiting a tuning pass.
+>
+> This branch is ahead of the latest release: the **battery** and the **rider camera lean** have landed
+> since `2026.07.24` and ship with the next one. Day-to-day work happens on `dev/mica-alex-changes`;
+> `main` is the release line. See `docs/AGENT-PLANS/MASTER_PLAN.md` (local only, gitignored) for the
+> roadmap and the exact "done / not done" state.
 
 ## What makes it different from a pig with a saddle
 
@@ -45,22 +58,39 @@ Build system is [GregTechCEu Buildscripts](https://github.com/GregTechCEu/Builds
 
 ```
 com.micatechnologies.minecraft.ldib
-├── Ldib, LdibConfig, LdibRegistry, LdibTab, Ldib*Proxy   # Forge plumbing
-├── physics/     # bike handling model — pure Java, ZERO Minecraft types
+├── Ldib, LdibConfig, LdibRegistry, LdibTab, LdibSounds, Ldib*Proxy   # Forge plumbing
+├── RideableActions                # shared park / pocket / grab logic (server-authoritative)
+├── physics/     # handling + battery models — pure Java, ZERO Minecraft types
 │   ├── BikeState                  # immutable (speed, heading)
-│   ├── BikeTuning                 # per-variant handling constants
-│   └── BikePhysics                # semi-implicit Euler step; testable on a bare JVM
+│   ├── BikeTuning                 # per-variant handling constants; blends motor assist
+│   ├── BikePhysics                # semi-implicit Euler step; testable on a bare JVM
+│   └── BatteryModel               # charge spend + assist taper
 ├── entity/
-│   └── EntityBike                 # the rider-controlled vehicle (common; server loads it)
-├── item/
-│   └── ItemBike, LdibItems        # places the bike, boat-style
-└── client/render/                 # client-ONLY: RenderBike + ModelBike (blocky)
+│   ├── EntityBike                 # the rider-controlled vehicle (common; server loads it)
+│   ├── BikeVariant                # "variants are data": tuning + skin + pose + battery per variant
+│   └── RiderPose                  # seated (bike) vs standing (scooter)
+├── item/                          # ItemBike, LdibItems — places the bike, boat-style
+├── block/                         # racks, docks, kiosks + the bike-share network (WorldSavedData)
+├── network/                       # LdibNetwork + packets (kiosk GUI, grab, config sync)
+├── api/                           # BikeShareBilling, ShareTariff — the economy seam
+├── integration/                   # SumEconomy — optional soft dep, reflection only, no compile dep
+└── client/                        # client-ONLY, reached via LdibClientProxy
+    ├── render/                    # RenderBike, ModelRideable + per-variant models, rack/dock TESRs
+    ├── hud/                       # ride readout (speed + battery), grab prompt
+    ├── gui/                       # kiosk screen
+    ├── sound/                     # looping ride sound, brake scuff
+    └── RiderCamera, RiderPoseHandler, LdibKeyHandler, ClientConfigSync
 ```
 
-**The load-bearing constraint:** `physics` contains no Minecraft types. That keeps the part most
-likely to be subtly wrong — acceleration, braking, steering feel — testable on a bare JVM
-(`./gradlew test` runs in seconds), with assertions like "braking stops sooner than coasting" and
-"a parked bike does not turn on the spot". Convert to Minecraft types at the entity boundary only.
+**The load-bearing constraint:** `physics` contains no Minecraft types. That keeps the parts most
+likely to be subtly wrong — acceleration, braking, steering feel, how a battery fades — testable on a
+bare JVM (`./gradlew test` runs 33 tests in seconds), with assertions like "braking stops sooner than
+coasting", "a parked bike does not turn on the spot" and "a flat e-bike never outruns a pedal bicycle".
+Convert to Minecraft types at the entity boundary only.
+
+**The other one:** nothing outside `client/` may touch `net.minecraft.client`. A stray client import in
+common code compiles perfectly and only fails when a dedicated server boots — hence the CI smoke test
+below.
 
 ## CI
 
