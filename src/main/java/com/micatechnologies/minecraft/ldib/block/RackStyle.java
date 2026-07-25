@@ -8,9 +8,17 @@ package com.micatechnologies.minecraft.ldib.block;
  * facing (its length axis), so a wave rack is a 3×1 structure holding five bikes rather than a
  * cramped 1×1. Placing the master block fills in the extension blocks; breaking any part breaks the
  * whole rack. {@link #slots} give each bike's parking spot in the rack's <b>local frame</b>: local +X
- * runs along the length (the extension axis, matching the block models, which are drawn spanning X),
- * local +Z is across it (the direction a parked bike points). The tile-entity renderer rotates that
- * frame by the block's facing.</p>
+ * runs along the length (the extension axis), local +Z is across it (the direction a parked bike
+ * points). The tile-entity renderer rotates that frame by the block's facing.</p>
+ *
+ * <p><b>Multi-block styles need one block model per part.</b> A model element cannot leave its own
+ * block, and the blockstate draws a model once per PART, so a rack longer than 1 is authored as
+ * {@code bike_rack_<style>_0/_1/_2} — each holding just that block's slice. Getting this wrong is not
+ * subtle but it is easy to miss: until 2026-07-25 all three parts pointed at a single 1×1 model, so a
+ * whole rack was drawn compressed into one block, three times over, while the per-block collision
+ * boxes correctly spanned all three. Generate the slices with {@code tools/gen_rack_models.py} rather
+ * than editing them by hand — it defines each rack once across the full run and clips it, which is
+ * what keeps the pattern continuous across a block seam.</p>
  */
 public enum RackStyle {
 

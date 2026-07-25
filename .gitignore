@@ -116,3 +116,4 @@ example-source/
 *.env
 .env.*
 *credentials*
+__pycache__/

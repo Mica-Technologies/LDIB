@@ -48,11 +48,11 @@ public final class RiderCamera {
         // into a transition. Taking the model's own lean also guarantees the camera and the bike
         // under it agree exactly, which is the whole illusion.
         //
-        // SIGN: not yet confirmed in-game. The renderer's lean and this roll are separate rotations
-        // and the cosmetic steer angle already needed its sign flipped once for exactly this reason
-        // (a Y-steer and a Z-lean have opposite handedness under the renderer's scale(-1,-1,1)). If
-        // the horizon tips the wrong way on the first ride, negate here — not in EntityBike, whose
-        // lean is verified correct.
+        // SIGN: confirmed correct in-game 2026-07-25 — the horizon rolls INTO the turn. Worth
+        // recording rather than deleting, because the cosmetic steer angle needed its sign flipped for
+        // what looks like the same reason (a Y-steer and a Z-lean have opposite handedness under the
+        // renderer's scale(-1,-1,1)), so the natural assumption on reading this is that the roll needs
+        // negating too. It does not — CameraSetup's roll shares the lean's Z-axis convention.
         float lean = bike.bikeLean((float) event.getRenderPartialTicks());
         event.setRoll(lean * (float) LdibConfig.cameraLeanStrength);
     }
