@@ -4,6 +4,7 @@ import com.micatechnologies.minecraft.ldib.LdibConstants;
 import com.micatechnologies.minecraft.ldib.LdibTab;
 import com.micatechnologies.minecraft.ldib.entity.BikeVariant;
 import com.micatechnologies.minecraft.ldib.entity.EntityBike;
+import com.micatechnologies.minecraft.ldib.entity.RideablePlacement;
 import com.micatechnologies.minecraft.ldib.item.ItemBike;
 import com.micatechnologies.minecraft.ldib.item.LdibItems;
 import net.minecraft.block.Block;
@@ -199,6 +200,7 @@ public class BlockBikeDock extends Block {
      */
     private boolean checkOutFromDock(World world, BlockPos pos, IBlockState state, EntityPlayer player,
                                      TileEntityBikeDock dock, BikeShareNetwork network) {
+        // 1. Is this player entitled to a bike from this dock?
         BikeShareNetwork.Session session = network.getSession(player.getUniqueID());
         if (session != null) {
             if (session.bikeTaken) {
@@ -210,22 +212,32 @@ public class BlockBikeDock extends Block {
                 status(player, "Take your bike from a dock at the station where you checked out.");
                 return true;
             }
-            BikeVariant variant = dock.undock();
-            spawnInFront(world, pos, state, variant);
-            network.bikeCheckedOut();
-            network.markBikeTaken(player.getUniqueID(), world.getTotalWorldTime());
-            status(player, "Enjoy your ride — return it at any station dock when you're done.");
-            return true;
-        }
-        // No session: station docks send you to the kiosk; standalone docks self-serve.
-        if (BikeShareStation.findKioskNear(world, pos) != null) {
+        } else if (BikeShareStation.findKioskNear(world, pos) != null) {
+            // No session: station docks send you to the kiosk; standalone docks self-serve.
             status(player, "Check out at the station kiosk first.");
             return true;
         }
+
+        // 2. Is there anywhere to put it? Asked BEFORE emptying the dock, because undocking and only
+        // then discovering the dock is walled in would take a bike out of the fleet without ever
+        // handing one to the player.
+        RideablePlacement.Spot spot =
+            RideablePlacement.findReleaseSpot(world, pos, state.getValue(FACING));
+        if (spot == null) {
+            status(player, "There's no room to release a bike here — clear the space in front of the dock.");
+            return true;
+        }
+
+        // 3. Hand it over.
         BikeVariant variant = dock.undock();
-        spawnInFront(world, pos, state, variant);
+        release(world, spot, variant);
         network.bikeCheckedOut();
-        status(player, "Checked out a bike. (" + network.available() + " available in the network)");
+        if (session != null) {
+            network.markBikeTaken(player.getUniqueID(), world.getTotalWorldTime());
+            status(player, "Enjoy your ride — return it at any station dock when you're done.");
+        } else {
+            status(player, "Checked out a bike. (" + network.available() + " available in the network)");
+        }
         return true;
     }
 
@@ -323,13 +335,16 @@ public class BlockBikeDock extends Block {
         status(player, "Added a bike-share bike to the network.");
     }
 
-    /** Spawn a checked-out bike in the block in front of the dock, pointing out along its facing. */
-    private static void spawnInFront(World world, BlockPos pos, IBlockState state, BikeVariant variant) {
-        EnumFacing f = state.getValue(FACING);
-        BlockPos front = pos.offset(f);
+    /**
+     * Spawn a checked-out bike at a spot {@link RideablePlacement} has already vetted.
+     *
+     * <p>The spot is found before the dock is emptied, not here, so this cannot fail — see
+     * {@link #checkOutFromDock}. It used to be "one block along the facing", which is half a bike
+     * short of clearing the dock post and put every released bike inside the thing it came out of.</p>
+     */
+    private static void release(World world, RideablePlacement.Spot spot, BikeVariant variant) {
         EntityBike bike = new EntityBike(world, variant, true); // dispensed bikes are public-fleet bikes
-        bike.setPositionAndRotation(
-            front.getX() + 0.5D, pos.getY(), front.getZ() + 0.5D, f.getHorizontalAngle(), 0.0F);
+        bike.setPositionAndRotation(spot.x, spot.y, spot.z, spot.yaw, 0.0F);
         world.spawnEntity(bike);
     }
 
