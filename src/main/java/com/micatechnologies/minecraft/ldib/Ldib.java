@@ -87,10 +87,13 @@ public class Ldib {
                 .entity(EntityBike.class)
                 .id(new ResourceLocation(LdibConstants.MOD_NAMESPACE, "bike"), entityId++)
                 .name("bike")
-                // Boat-class tracking: seen from a modest distance, updated every 3 ticks with
-                // velocity so non-riding clients interpolate the bike smoothly. The controlling
-                // client is authoritative over its own position via the vanilla vehicle-move packet.
-                .tracker(80, 3, true)
+                // Boat-class tracking: seen from a modest distance, updated on the interval
+                // EntityBike spreads its corrections over — the two must agree, or an observing
+                // client is either still easing in an old error when the next one lands or sitting
+                // finished and visibly wrong while it waits. The controlling client is authoritative
+                // over its own position via the vanilla vehicle-move packet; everyone else follows
+                // the tracker, dead-reckoning from the synced speed in between.
+                .tracker(80, EntityBike.TRACKER_UPDATE_INTERVAL, true)
                 .build());
     }
 

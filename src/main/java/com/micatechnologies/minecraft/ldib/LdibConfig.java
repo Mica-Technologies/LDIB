@@ -146,6 +146,19 @@ public final class LdibConfig {
      */
     public static double cameraLeanStrength = 0.55D;
 
+    /**
+     * How hard a moving rider's view drifts back toward straight ahead, {@code 0} (never — look
+     * wherever you like at any speed) to {@code 1} (snap forward the moment you stop turning, which is
+     * how the bike behaved before free look existed). Scales a decay rate in <b>real seconds</b>, so
+     * the drift home is the same speed whatever the frame rate; {@code client/RiderLook} applies it.
+     *
+     * <p>Presentation only and never synced, and it can afford to be: the pull only ever moves a
+     * rider's view <i>toward</i> the heading, i.e. strictly inside the look limit
+     * {@code EntityBike.MAX_LOOK_YAW} the server enforces, so a client that drifts differently from
+     * its neighbours can never end up somewhere the server would reject.</p>
+     */
+    public static double viewRecenterStrength = 0.05D;
+
     private static Configuration config;
 
     private LdibConfig() {
@@ -374,6 +387,11 @@ public final class LdibConfig {
             "How much of the bike's lean the rider's camera copies (0 = level horizon, 1 = full "
                 + "lean). Camera roll causes motion sickness for some players; 0 disables it.",
             0.0D, 1.0D).getDouble();
+        viewRecenterStrength = config.get(CATEGORY_CLIENT, "viewRecenterStrength", viewRecenterStrength,
+            "How hard a moving rider's view drifts back toward straight ahead (0 = never, look "
+                + "around freely at any speed; 1 = snaps forward as soon as you stop turning). "
+                + "0.05 is about one second to settle. You can always look around freely while "
+                + "stopped, whatever this is set to.", 0.0D, 1.0D).getDouble();
 
         config.addCustomCategoryComment(CATEGORY_BIKESHARE,
             "Bike-share stations. A kiosk plus the docks within its radius form a station; rentals can "

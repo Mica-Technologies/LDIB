@@ -44,8 +44,8 @@ only if truly needed, the coaster car's trick of not being the controlling passe
 ## Authority and sync, staged
 
 - **MVP:** the controlling client is authoritative over its own bike via `CPacketVehicleMove`; other
-  clients see it through the entity tracker (`tracker(80, 3, true)` — boat-class range, velocity on,
-  so non-riders interpolate smoothly). Good enough to ride and to watch someone ride.
+  clients see it through the entity tracker (`tracker(80, TRACKER_UPDATE_INTERVAL, true)` —
+  boat-class range). Good enough to ride; **not** good enough to watch someone ride, see below.
 - **Phase 2 — config sync:** `LdibConfig.physics` values change simulation *results*. If a client's
   gravity/drag/accel differ from the server's, its prediction diverges and it rubber-bands. The
   server must push its `physics` config to clients on join. Until that ships, servers and clients must
@@ -53,6 +53,88 @@ only if truly needed, the coaster car's trick of not being the controlling passe
 - **Later — ridden-entity rendering:** at speed, vanilla's per-render-chunk culling can skip the
   entity you are riding *on*; RCMC hit this and fixed it with a `RenderWorldLastEvent` redraw. Expect
   to need the same once bikes get fast or long.
+
+## Watching someone else ride
+
+The first version of this was bad in a way worth recording, because every piece of it looked right in
+isolation.
+
+An observing client ticks a remote player's bike exactly like any other entity, so `EntityBike.onUpdate`
+ran, stepped `BikePhysics`, and derived motion — from `rider.moveForward` and `rider.moveStrafing`,
+**which are only ever populated on the riding client**. So the model ran with zero input on a bike whose
+speed had also never been synced, concluded the bike was parked, and left it exactly where it was. Then
+the tracker arrived and `Entity.setPositionAndRotationDirect` — whose base implementation is a bare
+`setPosition` + `setRotation`, with none of the interpolation `EntityLivingBase` and the vanilla
+vehicles override in — teleported it a full block. Six times a second, on a bike that was motionless in
+between. No amount of render-side interpolation can rescue that; the entity really was standing still.
+
+Two changes, together:
+
+1. **Sync the speed** (`EntityBike.SPEED`, quantised by `SPEED_SYNC_STEP`). An observer can then
+   integrate `(speed, heading)` exactly as the server does and keep the bike *moving* between updates.
+   It also fixes three things that were quietly reading zero on every screen but the rider's: wheel
+   spin, lean, and the riding sound.
+2. **Treat a tracker update as an error, not a destination.** `setPositionAndRotationDirect` stores
+   the difference; `applyServerCorrection` folds it in over `TRACKER_UPDATE_INTERVAL` ticks, so one
+   correction finishes just as the next update lands. Beyond `CORRECTION_SNAP_DISTANCE` it snaps
+   instead — sliding smoothly across ten blocks would be stranger to watch than a cut.
+
+The dividing line is `simulate = !world.isRemote || canPassengerSteer()`: the server and the rider's own
+client predict, everyone else follows. `canPassengerSteer()` is vanilla's own "is this the local
+player's vehicle" test and is ordinary common code (the vanilla boat uses it) — it is false on a
+dedicated server for *every* bike, which is why it is paired with the `isRemote` check rather than used
+alone.
+
+## Looking around while riding — and why it lives on the frame, not the tick
+
+`updatePassenger` originally assigned `passenger.rotationYaw = this.rotationYaw`. That tracked steering
+perfectly and made looking around impossible: the assignment ran every tick and ate whatever the mouse
+had done since the last one.
+
+The obvious fix — nudge the yaw from `updatePassenger` by deltas instead of assigning it — was wrong
+too, and in-game testing found it immediately. **Mouse look is per-frame**: `EntityRenderer.updateCameraAndRender`
+calls `player.turn(...)` once a frame and renders the world in the same frame, while `updatePassenger`
+runs on the 20 Hz tick. Two rates, in conflict, producing two distinct artefacts:
+
+- **Recentring juddered** — a pull applied 20×/s to a camera redrawn 100+×/s is a staircase, and it
+  read as stutter right next to the mouse's own smoothness.
+- **The look limit bounced** — the mouse carried the view past the stop every frame and the tick-rate
+  clamp yanked it back 20×/s. That is an oscillator, not a wall.
+
+So the whole job moved onto the frame, into `client/RiderLook` on `EntityViewRenderEvent.CameraSetup`
+— which fires from `orientCamera`, *after* that frame's mouse turn and before the camera rotation is
+applied. Nothing runs between the rider's input and the clamp, so the limit is a genuine hard stop, and
+recentring is a continuous exponential decay in real seconds (frame-rate independent) rather than a
+staircase in ticks. `RiderLook` also feeds the corrected angle back via `event.setYaw`, since the event
+was built from the yaw as it stood a moment earlier.
+
+**The offset is the state, not the yaw.** `RiderLook` keeps the rider's angle away from the bike's
+heading and derives the absolute yaw from it each frame. That is what makes the view follow a turn:
+re-deriving the offset from the absolute yaw would have it shrink by exactly the bike's heading change,
+leaving the rider staring at a fixed point in the world while the bike turned underneath them. Only the
+*mouse's* contribution is folded in — the difference between the yaw now and the yaw `RiderLook` wrote
+last frame — and the bike's heading arrives already interpolated for the frame, which is the other half
+of why a turn is smooth.
+
+What stays on the tick is only what genuinely belongs to the bike: `setRenderYawOffset` keeps the
+rider's *body* square with it, so looking over your shoulder turns your head rather than swivelling you
+out of the saddle.
+
+Two limits shape it, and they are deliberately different kinds of thing:
+
+- `EntityBike.MAX_LOOK_YAW` (100°, a shade under the vanilla boat's 105) is a **constant**. The riding
+  client stops itself at it per frame; the **server** clamps to it in `updatePassenger` so the limit is
+  enforced by the authority rather than trusted to a client. A client and server that disagreed about
+  it would fight over the rider's yaw. Observing clients deliberately do *not* re-clamp — a remote
+  rider's yaw arrives already clamped, and re-clamping against a bike heading a tick behind would only
+  jitter their head.
+- `LdibConfig.viewRecenterStrength` is **client-only** and safe to differ per player, because the drift
+  only ever moves a view *toward* the heading — strictly inside the shared limit, so the server can
+  never have cause to reject it. It scales with speed, reaching zero at a standstill: stopped, you look
+  where you like and stay there; at speed your eyes come back to the road.
+
+Nothing here feeds back into movement. The bike steers from `moveStrafing`, never from where the rider
+is looking.
 
 ## Client-side discipline
 

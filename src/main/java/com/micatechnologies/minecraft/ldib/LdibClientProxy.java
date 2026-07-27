@@ -39,6 +39,7 @@ public class LdibClientProxy extends LdibCommonProxy {
         MinecraftForge.EVENT_BUS.register(new com.micatechnologies.minecraft.ldib.client.hud.GrabPromptHud());
         MinecraftForge.EVENT_BUS.register(new com.micatechnologies.minecraft.ldib.client.RiderPoseHandler());
         MinecraftForge.EVENT_BUS.register(new com.micatechnologies.minecraft.ldib.client.RiderCamera());
+        MinecraftForge.EVENT_BUS.register(new com.micatechnologies.minecraft.ldib.client.RiderLook());
         MinecraftForge.EVENT_BUS.register(
             new com.micatechnologies.minecraft.ldib.client.sound.RideableSoundHandler());
         com.micatechnologies.minecraft.ldib.client.LdibKeyHandler.register();

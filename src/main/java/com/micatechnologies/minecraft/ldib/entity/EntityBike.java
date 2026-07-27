@@ -22,6 +22,8 @@ import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.World;
+import net.minecraftforge.fml.relauncher.Side;
+import net.minecraftforge.fml.relauncher.SideOnly;
 
 /**
  * A rider-controlled bike.
@@ -68,6 +70,26 @@ public class EntityBike extends Entity {
     private static final DataParameter<Float> CHARGE =
         EntityDataManager.createKey(EntityBike.class, DataSerializers.FLOAT);
 
+    /**
+     * Ground speed in blocks/second, synced so a client watching <b>someone else</b> ride can carry
+     * the bike forward between position updates instead of waiting to be told where it went.
+     *
+     * <p>This is the fix for the worst thing about watching another player ride. An observing client
+     * runs {@link #onUpdate()} for that bike like any other, but the rider's {@code moveForward} /
+     * {@code moveStrafing} are only ever populated on the riding client — so the handling model ran
+     * with no input, the bike sat perfectly still for three ticks, and then the tracker teleported it a
+     * whole block. Six times a second. Nothing downstream could smooth that, because the bike genuinely
+     * was not moving between the jumps.</p>
+     *
+     * <p>With the speed in hand an observer can integrate {@code (speed, heading)} exactly as the
+     * server does and only ever needs the tracker to correct the drift, which is small and can be eased
+     * in ({@link #applyServerCorrection()}). It earns its bandwidth twice over: the wheel spin, the
+     * lean and the riding sound all read {@link #speed()}, and all three were reading zero on every
+     * screen but the rider's.</p>
+     */
+    private static final DataParameter<Float> SPEED =
+        EntityDataManager.createKey(EntityBike.class, DataSerializers.FLOAT);
+
     /** Forward ground speed in blocks/second — the one state variable the physics model owns. */
     private double bikeSpeed;
 
@@ -80,6 +102,42 @@ public class EntityBike extends Entity {
 
     /** How far {@link #chargeExact} must drift from the synced value before it is worth a packet. */
     private static final double CHARGE_SYNC_STEP = 0.005D;
+
+    /**
+     * How far {@link #bikeSpeed} must drift from the synced {@link #SPEED} before it is worth a packet.
+     *
+     * <p>Not free, and worth understanding why: a dirty data manager makes {@code EntityTrackerEntry}
+     * send that entity's update <b>every tick</b> rather than on its usual interval. Coarse enough that
+     * a bike at a steady cruise goes quiet (and a parked one never speaks at all), while accelerating
+     * hard costs a few extra updates — which is exactly when the extra position accuracy is worth
+     * having anyway. 0.25 b/s of speed error is 0.0125 blocks/tick of drift, and the correction takes
+     * it back out long before it is visible.</p>
+     */
+    private static final float SPEED_SYNC_STEP = 0.25F;
+
+    /**
+     * How many ticks a client spends easing out the difference between where it thinks a
+     * server-authoritative bike is and where the server says it is. Matched to the tracker interval
+     * ({@code Ldib.registerEntities}) so one correction finishes just as the next update lands — the
+     * error is always being spread over exactly the window it accumulated in, with no overlap to
+     * fight and no idle gap to sit visibly wrong in.
+     */
+    public static final int TRACKER_UPDATE_INTERVAL = 3;
+
+    /**
+     * Error (blocks) large enough that easing it out would look worse than admitting it: past this the
+     * client snaps. A real teleport, a chunk reload, or a bike shoved by something the client never
+     * simulated all land here, and gliding a bike smoothly across four blocks of world would be a
+     * strictly stranger thing to watch than a cut.
+     */
+    private static final double CORRECTION_SNAP_DISTANCE = 4.0D;
+
+    /** Position error still to be eased out on a client, and how many ticks are left to do it in. */
+    private double correctionX;
+    private double correctionY;
+    private double correctionZ;
+    private float correctionYaw;
+    private int correctionTicks;
 
     /** Max horizontal distance (blocks) any single {@link #move} sub-step covers; the per-tick move is
      *  split into ceil(perTick / this) small steps for accurate collision at speed. 0.25 = 1-2 steps at
@@ -131,6 +189,20 @@ public class EntityBike extends Entity {
     private float prevBikeSteer;
 
     /**
+     * How far the rider may turn their view away from the way the bike is pointing, in degrees either
+     * side. Enforced on <b>both</b> sides so a rider's head can never be reported somewhere anatomy
+     * doesn't go; a shade under vanilla's own boat limit (105°), which is the closest thing to prior
+     * art for "sitting on a thing while looking around".
+     *
+     * <p>A constant rather than a config value on purpose: the server clamps to it and the riding
+     * client stops itself at it, so a client and server that disagreed would fight over the rider's
+     * yaw. How firmly the view springs back to centre is the part riders actually want to tune, and
+     * that ({@link LdibConfig#viewRecenterStrength}) is a client-only setting precisely because it
+     * only ever moves a view <i>inside</i> this shared limit. Read by {@code client/RiderLook}.</p>
+     */
+    public static final float MAX_LOOK_YAW = 100.0F;
+
+    /**
      * A rider who left the saddle last tick and whose landing spot still needs checking, or
      * {@code null}. Server-side only and one-shot: see {@link #rescueStuckDismount()} for why the
      * check cannot happen at the moment they dismount.
@@ -177,6 +249,7 @@ public class EntityBike extends Entity {
         this.dataManager.register(BRAKING, false);
         this.dataManager.register(SHARE, false);
         this.dataManager.register(CHARGE, (float) BatteryModel.FULL);
+        this.dataManager.register(SPEED, 0.0F);
     }
 
     /**
@@ -322,14 +395,54 @@ public class EntityBike extends Entity {
         return variant().pose().seated();
     }
 
+    /**
+     * Seat the rider, square their body with the bike, and otherwise <b>leave their view alone</b>.
+     *
+     * <p>This used to assign {@code passenger.rotationYaw = this.rotationYaw} outright, which tracked
+     * steering perfectly and made looking around impossible — the assignment ran every tick and ate
+     * whatever the mouse had done since the last one. Nudging the yaw from here instead was no better:
+     * this method runs on the 20 Hz tick and mouse look runs per frame, so anything done to a view here
+     * either juddered or fought the mouse. Where the rider is looking is now owned entirely by
+     * {@code client/RiderLook}, on the frame, where the input is.</p>
+     *
+     * <p>What stays is the part that genuinely belongs to the bike: {@code setRenderYawOffset} keeps
+     * the rider's <i>body</i> square with it, so looking over your shoulder turns your head rather than
+     * swivelling you out of the saddle. And the server — which has no frames and no camera — clamps the
+     * reported yaw, so that limit is enforced by the authority rather than trusted to a client.</p>
+     *
+     * <p>Nothing here feeds back into movement: {@link #onUpdate()} steers from {@code moveStrafing},
+     * never from where the rider happens to be looking.</p>
+     */
     @Override
     public void updatePassenger(Entity passenger) {
-        if (this.isPassenger(passenger)) {
-            passenger.setPosition(this.posX,
-                this.posY + this.getMountedYOffset() + passenger.getYOffset(), this.posZ);
-            // Face the rider the way the bike is pointing so first-person view tracks steering.
-            passenger.rotationYaw = this.rotationYaw;
-            passenger.setRotationYawHead(this.rotationYaw);
+        if (!this.isPassenger(passenger)) {
+            return;
+        }
+        passenger.setPosition(this.posX,
+            this.posY + this.getMountedYOffset() + passenger.getYOffset(), this.posZ);
+        passenger.setRenderYawOffset(this.rotationYaw);
+        if (!this.world.isRemote) {
+            clampRiderView(passenger);
+        }
+    }
+
+    /**
+     * Hold the rider's reported view within {@link #MAX_LOOK_YAW} of the heading. <b>Server-side
+     * only.</b>
+     *
+     * <p>The riding client already keeps itself inside this limit per frame, so on a well-behaved
+     * client this never moves anything; it is here so a client that does not cannot report a head
+     * screwed all the way round. Deliberately <i>not</i> run on observing clients either — a remote
+     * rider's yaw arrives already clamped by the server, and re-clamping it against a bike heading
+     * that may be a tick behind would only jitter their head for no gain.</p>
+     */
+    private void clampRiderView(Entity rider) {
+        float offset = MathHelper.wrapDegrees(rider.rotationYaw - this.rotationYaw);
+        float correction = MathHelper.clamp(offset, -MAX_LOOK_YAW, MAX_LOOK_YAW) - offset;
+        if (correction != 0.0F) {
+            rider.prevRotationYaw += correction;
+            rider.rotationYaw += correction;
+            rider.setRotationYawHead(rider.rotationYaw);
         }
     }
 
@@ -391,10 +504,23 @@ public class EntityBike extends Entity {
             rescueStuckDismount();
         }
 
+        // Who owns this bike's movement this tick?
+        //
+        // The server always does its own simulating, and so does the client of whoever is riding —
+        // that client is authoritative over its own bike via CPacketVehicleMove, and predicting is the
+        // only way its own ride feels immediate. Every OTHER client is a spectator: it has no input to
+        // simulate from (moveForward/moveStrafing are populated only on the riding client), so it
+        // follows the server instead, integrating the synced speed and easing out the difference.
+        //
+        // canPassengerSteer() is vanilla's own "is this the local player's vehicle" test, and it is
+        // false on a dedicated server for every bike — hence pairing it with the isRemote check rather
+        // than using it alone.
+        boolean simulate = !this.world.isRemote || canPassengerSteer();
+
         double throttle = 0.0D;
         double steer = 0.0D;
         Entity controller = getControllingPassenger();
-        if (controller instanceof EntityPlayer) {
+        if (simulate && controller instanceof EntityPlayer) {
             EntityPlayer rider = (EntityPlayer) controller;
             // moveForward: +1 W (pedal), -1 S (brake, then back up). moveStrafing: +1 A (left),
             // -1 D (right). A left turn decreases yaw, and BikePhysics adds steer to heading, so
@@ -418,7 +544,12 @@ public class EntityBike extends Entity {
         // ticks, not just ridden ones, so that is the difference between a stocked share fleet costing
         // nothing and it costing a few hundred short-lived objects every tick. Gravity and the world
         // move below still run, so a bike whose ground is mined out still falls.
-        if (controller != null || Math.abs(this.bikeSpeed) > IDLE_SPEED) {
+        if (!simulate) {
+            // A spectator's copy: the server owns the speed, and the heading arrives with the position
+            // updates. Running the handling model here would only invent a different answer from the
+            // one about to be corrected in.
+            this.bikeSpeed = this.dataManager.get(SPEED);
+        } else if (controller != null || Math.abs(this.bikeSpeed) > IDLE_SPEED) {
             int subSteps = Math.max(1, LdibConfig.physicsSubSteps);
             double dt = LdibConstants.SECONDS_PER_TICK / subSteps;
             BikeTuning tuning = assistedTuning();
@@ -428,6 +559,17 @@ public class EntityBike extends Entity {
             }
             this.bikeSpeed = state.speed;
             this.rotationYaw = (float) state.headingDegrees;
+        }
+
+        // Publish the speed for everyone else's dead reckoning, coarsely (see SPEED_SYNC_STEP) — but
+        // never coarsely enough to leave a bike that has just stopped still reported as rolling, which
+        // would have observers watching it glide on the spot.
+        if (!this.world.isRemote) {
+            float synced = this.dataManager.get(SPEED);
+            boolean stopped = Math.abs(this.bikeSpeed) <= IDLE_SPEED;
+            if (Math.abs(this.bikeSpeed - synced) >= SPEED_SYNC_STEP || (stopped && synced != 0.0F)) {
+                this.dataManager.set(SPEED, stopped ? 0.0F : (float) this.bikeSpeed);
+            }
         }
 
         // Spend battery for the distance just covered under power. Server-side only: the synced charge
@@ -508,13 +650,90 @@ public class EntityBike extends Entity {
         if (this.onGround) {
             this.motionY = 0.0D;
         }
-        // Ran into a wall: bleed off speed rather than grinding along it at full pedal.
-        if (hitWall) {
+        // Ran into a wall: bleed off speed rather than grinding along it at full pedal. Only where the
+        // handling model is actually being run — a spectator's copy clipping a corner the server rode
+        // cleanly past must not invent a slowdown the server never had.
+        if (hitWall && simulate) {
             this.bikeSpeed *= 0.5D;
         }
 
+        // Last: fold in a slice of whatever the server last said, on top of the motion above rather
+        // than instead of it.
+        applyServerCorrection();
+
         // Keep any riders seated and any nearby entities from clipping through.
         this.setRotation(this.rotationYaw, this.rotationPitch);
+    }
+
+    // --- Following someone else's ride --------------------------------------------------------
+
+    /**
+     * Take a position update from the entity tracker as an <b>error to work off</b> rather than a place
+     * to be.
+     *
+     * <p>{@code Entity}'s own implementation of this is a bare {@code setPosition} + {@code
+     * setRotation} — only {@code EntityLivingBase} and the vanilla vehicles override it to interpolate,
+     * so a plain entity simply teleports on every update. Storing the difference instead lets
+     * {@link #applyServerCorrection()} spread it across the ticks until the next one, so the bike is
+     * always moving and never jumping.</p>
+     *
+     * <p>Client-only, exactly as the method it overrides: Forge strips it from a dedicated server, so
+     * a server never carries a correction and never needs to.</p>
+     */
+    @SideOnly(Side.CLIENT)
+    @Override
+    public void setPositionAndRotationDirect(double x, double y, double z, float yaw, float pitch,
+                                             int posRotationIncrements, boolean teleport) {
+        double errorX = x - this.posX;
+        double errorY = y - this.posY;
+        double errorZ = z - this.posZ;
+        boolean farOff = errorX * errorX + errorY * errorY + errorZ * errorZ
+            > CORRECTION_SNAP_DISTANCE * CORRECTION_SNAP_DISTANCE;
+        if (farOff) {
+            // Applies even to the bike we are riding: whatever put it this far from where the server
+            // has it, the prediction is no longer predicting the same bike, and quietly staying wrong
+            // forever is the worse failure. Vanilla's own rubber-band for a rejected vehicle move
+            // arrives by a different route (SPacketMoveVehicle), so this is purely the backstop.
+            this.correctionTicks = 0;
+            this.setPosition(x, y, z);
+            this.setRotation(yaw, pitch);
+            return;
+        }
+        // Otherwise our own bike is predicted locally, and its position is what the server is being
+        // told rather than the other way round; letting the tracker drag it about would fight that.
+        if (canPassengerSteer()) {
+            return;
+        }
+        this.correctionX = errorX;
+        this.correctionY = errorY;
+        this.correctionZ = errorZ;
+        this.correctionYaw = MathHelper.wrapDegrees(yaw - this.rotationYaw);
+        // Trust the tracker's own cadence when it offers one — it is the number of ticks until the next
+        // update, which is precisely the window this error should be spread over.
+        this.correctionTicks = Math.max(1,
+            posRotationIncrements > 0 ? posRotationIncrements : TRACKER_UPDATE_INTERVAL);
+        this.rotationPitch = pitch;
+    }
+
+    /** Fold this tick's slice of the outstanding server correction into the bike's position. */
+    private void applyServerCorrection() {
+        if (this.correctionTicks <= 0) {
+            return;
+        }
+        double sliceX = this.correctionX / this.correctionTicks;
+        double sliceY = this.correctionY / this.correctionTicks;
+        double sliceZ = this.correctionZ / this.correctionTicks;
+        float sliceYaw = this.correctionYaw / this.correctionTicks;
+        this.correctionX -= sliceX;
+        this.correctionY -= sliceY;
+        this.correctionZ -= sliceZ;
+        this.correctionYaw -= sliceYaw;
+        this.correctionTicks--;
+        // setPosition rather than move(): the server has already decided this is a legal place to be,
+        // and re-running collision on a correction is how a bike ends up wedged on the wrong side of
+        // the wall it is being nudged back through.
+        this.setPosition(this.posX + sliceX, this.posY + sliceY, this.posZ + sliceZ);
+        this.rotationYaw += sliceYaw;
     }
 
     @Override
@@ -630,6 +849,7 @@ public class EntityBike extends Entity {
         this.dataManager.set(SHARE, compound.getBoolean("Share"));
         this.rotationYaw = compound.getFloat("Yaw");
         this.bikeSpeed = compound.getDouble("Speed");
+        this.dataManager.set(SPEED, (float) this.bikeSpeed);
         // A bike saved before batteries existed has no tag; it comes back charged rather than flat.
         setCharge(compound.hasKey("Charge") ? compound.getDouble("Charge") : BatteryModel.FULL);
     }
@@ -637,6 +857,9 @@ public class EntityBike extends Entity {
     /**
      * Current ground speed in blocks/second, <b>signed</b> — negative while backing up. Read by the
      * renderer for wheel spin, by the HUD, and by the ride sound.
+     *
+     * <p>Meaningful on every client, not just the rider's: a bike being ridden by someone else gets
+     * this from the synced {@link #SPEED} rather than from a local simulation it has no input for.</p>
      */
     public double speed() {
         return this.bikeSpeed;
