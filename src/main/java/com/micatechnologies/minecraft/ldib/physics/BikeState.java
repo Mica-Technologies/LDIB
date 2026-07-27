@@ -16,7 +16,10 @@ package com.micatechnologies.minecraft.ldib.physics;
  */
 public final class BikeState {
 
-    /** Forward ground speed along the current heading, in blocks/second. Never negative for the MVP. */
+    /**
+     * Ground speed along the current heading, in blocks/second. <b>Signed</b>: negative means the
+     * bike is being walked backwards, which {@link BikeTuning#maxReverseSpeed} keeps to a crawl.
+     */
     public final double speed;
 
     /** Heading in degrees, using Minecraft's yaw convention (0 = +Z/south, increasing clockwise). */

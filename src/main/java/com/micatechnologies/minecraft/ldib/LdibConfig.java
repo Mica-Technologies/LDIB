@@ -63,6 +63,27 @@ public final class LdibConfig {
     /** Speed (blocks/s) at which steering authority has halved. */
     public static double steerSpeedFalloff = 5.0D;
 
+    /**
+     * Top backwards speed, blocks/second — shared by every variant, because backing up is a manual
+     * shuffle on all of them (no bike or scooter has a reverse gear). Walking pace is 4.3, so this is
+     * deliberately well under it.
+     */
+    public static double reverseMaxSpeed = 1.2D;
+
+    /** Acceleration while backing up, blocks/second². Shared by every variant, for the same reason. */
+    public static double reverseAcceleration = 2.0D;
+
+    /**
+     * How high a lip a rideable rolls straight over, in blocks — kerbs, slabs, and the shallow
+     * height-graded blocks road mods build hills out of.
+     *
+     * <p>Defaults to <b>0.6</b>, which is not a bike-specific number: it is vanilla's own player step
+     * height, so a bike goes over anything its rider could have walked over. That is the rule that
+     * needs no explaining in-game. Drop it to 0.5 for "slabs and nothing taller", or to 0 to restore
+     * the original behaviour where every lip is a wall.</p>
+     */
+    public static double stepHeight = 0.6D;
+
     /** E-bike assisted top speed, blocks/second. Faster than a pedal bike; still not a rocket. */
     public static double ebikeMaxSpeed = 11.0D;
 
@@ -156,6 +177,7 @@ public final class LdibConfig {
             shareStationRadius,
             ebikeRangeBlocks, scooterRangeBlocks, scooterFastRangeBlocks, batteryReserveFraction,
             scooterKickMaxSpeed, scooterKickAcceleration,
+            reverseMaxSpeed, reverseAcceleration, stepHeight,
         };
     }
 
@@ -196,6 +218,9 @@ public final class LdibConfig {
         batteryReserveFraction = at(v, 21, batteryReserveFraction);
         scooterKickMaxSpeed = at(v, 22, scooterKickMaxSpeed);
         scooterKickAcceleration = at(v, 23, scooterKickAcceleration);
+        reverseMaxSpeed = at(v, 24, reverseMaxSpeed);
+        reverseAcceleration = at(v, 25, reverseAcceleration);
+        stepHeight = at(v, 26, stepHeight);
     }
 
     /** {@code v[i]} if the sending server had that value, else {@code fallback} (keep our own). */
@@ -203,10 +228,17 @@ public final class LdibConfig {
         return i < v.length ? v[i] : fallback;
     }
 
-    /** The pedal-bicycle handling, from the current config values. */
+    /**
+     * The pedal-bicycle handling, from the current config values.
+     *
+     * <p>Every factory below ends in the same {@link #reverseMaxSpeed} / {@link #reverseAcceleration}
+     * pair, on purpose: backing any of these up is the rider shuffling it with their feet, and that is
+     * not a thing a motor or a bigger wheel makes you better at.</p>
+     */
     public static BikeTuning bicycleTuning() {
         return new BikeTuning(maxSpeed, pedalAcceleration, brakeDeceleration,
-            rollingResistance, airDrag, maxSteerRateDegPerSec, steerSpeedFalloff);
+            rollingResistance, airDrag, maxSteerRateDegPerSec, steerSpeedFalloff,
+            reverseMaxSpeed, reverseAcceleration);
     }
 
     /**
@@ -217,7 +249,8 @@ public final class LdibConfig {
      */
     public static BikeTuning eBikeTuning() {
         return new BikeTuning(ebikeMaxSpeed, ebikePedalAcceleration, brakeDeceleration,
-            rollingResistance, airDrag, maxSteerRateDegPerSec, steerSpeedFalloff);
+            rollingResistance, airDrag, maxSteerRateDegPerSec, steerSpeedFalloff,
+            reverseMaxSpeed, reverseAcceleration);
     }
 
     /**
@@ -227,7 +260,8 @@ public final class LdibConfig {
      */
     public static BikeTuning scooterTuning() {
         return new BikeTuning(scooterMaxSpeed, scooterAcceleration, scooterBrakeDeceleration,
-            rollingResistance, airDrag, scooterMaxSteerRateDegPerSec, scooterSteerSpeedFalloff);
+            rollingResistance, airDrag, scooterMaxSteerRateDegPerSec, scooterSteerSpeedFalloff,
+            reverseMaxSpeed, reverseAcceleration);
     }
 
     /**
@@ -237,7 +271,8 @@ public final class LdibConfig {
      */
     public static BikeTuning scooterFastTuning() {
         return new BikeTuning(scooterFastMaxSpeed, scooterFastAcceleration, scooterBrakeDeceleration,
-            rollingResistance, airDrag, scooterMaxSteerRateDegPerSec, scooterSteerSpeedFalloff);
+            rollingResistance, airDrag, scooterMaxSteerRateDegPerSec, scooterSteerSpeedFalloff,
+            reverseMaxSpeed, reverseAcceleration);
     }
 
     /**
@@ -247,7 +282,8 @@ public final class LdibConfig {
      */
     public static BikeTuning scooterKickTuning() {
         return new BikeTuning(scooterKickMaxSpeed, scooterKickAcceleration, scooterBrakeDeceleration,
-            rollingResistance, airDrag, scooterMaxSteerRateDegPerSec, scooterSteerSpeedFalloff);
+            rollingResistance, airDrag, scooterMaxSteerRateDegPerSec, scooterSteerSpeedFalloff,
+            reverseMaxSpeed, reverseAcceleration);
     }
 
     private static void load() {
@@ -274,6 +310,17 @@ public final class LdibConfig {
             "Maximum steering rate at low speed, degrees/second.", 1.0D, 720.0D).getDouble();
         steerSpeedFalloff = config.get(CATEGORY_PHYSICS, "steerSpeedFalloff", steerSpeedFalloff,
             "Speed (blocks/s) at which steering authority has halved.", 0.1D, 60.0D).getDouble();
+        reverseMaxSpeed = config.get(CATEGORY_PHYSICS, "reverseMaxSpeed", reverseMaxSpeed,
+            "Top backwards speed, blocks/second, shared by every variant. Backing up is a manual "
+                + "shuffle, so keep it well under walking pace (4.3).", 0.0D, 10.0D).getDouble();
+        reverseAcceleration = config.get(CATEGORY_PHYSICS, "reverseAcceleration", reverseAcceleration,
+            "Acceleration while backing up, blocks/second^2, shared by every variant.",
+            0.1D, 20.0D).getDouble();
+        stepHeight = config.get(CATEGORY_PHYSICS, "stepHeight", stepHeight,
+            "How high a lip (blocks) a rideable rolls straight over: kerbs, slabs and the shallow "
+                + "graded blocks road mods build hills from. 0.6 matches a walking player, so a bike "
+                + "goes wherever its rider could walk. 0.5 = slabs only; 0 = every lip is a wall.",
+            0.0D, 1.0D).getDouble();
         physicsSubSteps = config.get(CATEGORY_PHYSICS, "physicsSubSteps", physicsSubSteps,
             "Physics sub-steps per game tick. Higher is smoother steering and costs CPU only.",
             1, 16).getInt();

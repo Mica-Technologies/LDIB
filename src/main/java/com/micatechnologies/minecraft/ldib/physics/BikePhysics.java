@@ -19,6 +19,12 @@ package com.micatechnologies.minecraft.ldib.physics;
  */
 public final class BikePhysics {
 
+    /**
+     * Speed (blocks/s) below which a bike counts as parked: too slow to steer, and — for the entity
+     * layer, which shares this threshold — too slow to be worth stepping at all.
+     */
+    public static final double MIN_ROLLING_SPEED = 1.0e-4D;
+
     private BikePhysics() {
         throw new AssertionError("No instances.");
     }
@@ -28,8 +34,7 @@ public final class BikePhysics {
      *
      * @param state    the current state
      * @param throttle rider forward input in {@code [-1, 1]}: {@code +1} full pedal, {@code 0}
-     *                 coast, {@code -1} full brake. (Reverse is not modelled in the MVP; a
-     *                 negative input below a stopped bike simply holds it at rest.)
+     *                 coast, {@code -1} brake and then back up.
      * @param steer    rider turn input in {@code [-1, 1]}: {@code -1} hard left, {@code +1} hard
      *                 right, matching Minecraft's clockwise-positive yaw.
      * @param tuning   the handling constants for this vehicle
@@ -42,33 +47,50 @@ public final class BikePhysics {
         double steerClamped = clamp(steer, -1.0D, 1.0D);
 
         // --- 1. Speed. Apply the rider's longitudinal input, then passive losses. ---
+        //
+        // Longitudinal input means two different things depending on which way the bike is already
+        // rolling, which is what makes one key do both jobs: pushed AGAINST the direction of travel it
+        // is the brake (strong), and only once the bike is at rest does it drive the other way (weak).
+        // Each branch stops exactly at zero rather than sailing through it, so "brake to a halt" and
+        // "then start backing up" are two distinct, separately-felt phases of holding one key rather
+        // than a lurch through the middle at braking authority.
         double speed = state.speed;
 
         if (throttleClamped > 0.0D) {
-            speed += tuning.pedalAcceleration * throttleClamped * dt;
+            speed = speed < 0.0D
+                ? Math.min(0.0D, speed + tuning.brakeDeceleration * throttleClamped * dt)
+                : speed + tuning.pedalAcceleration * throttleClamped * dt;
         } else if (throttleClamped < 0.0D) {
-            // Braking opposes motion; it cannot push a stopped bike backwards.
-            speed += tuning.brakeDeceleration * throttleClamped * dt; // throttle < 0, so this subtracts
+            speed = speed > 0.0D
+                ? Math.max(0.0D, speed + tuning.brakeDeceleration * throttleClamped * dt)
+                : speed + tuning.reverseAcceleration * throttleClamped * dt;
         }
 
-        // Rolling resistance: exponential decay, timestep-independent.
+        // Rolling resistance: exponential decay, timestep-independent. Decaying toward zero is already
+        // the right thing at negative speed — it opposes a reversing bike exactly as it opposes a
+        // rolling one.
         speed *= Math.exp(-tuning.rollingResistance * dt);
-        // Quadratic air drag: -k * v^2, integrated over the step (still only acting to slow down).
-        speed -= tuning.airDrag * speed * speed * dt;
+        // Quadratic air drag, written as -k*v*|v| rather than -k*v^2 so it stays a *resistance*: the
+        // squared form is positive whichever way you are going, which would have it shoving a
+        // reversing bike backwards ever faster.
+        speed -= tuning.airDrag * speed * Math.abs(speed) * dt;
 
-        if (speed < 0.0D) {
-            speed = 0.0D;
-        }
         if (speed > tuning.maxSpeed) {
             speed = tuning.maxSpeed;
         }
+        if (speed < -tuning.maxReverseSpeed) {
+            speed = -tuning.maxReverseSpeed;
+        }
 
         // --- 2. Heading. Steering authority falls off with speed. A parked bike does not turn. ---
+        // Reversing flips the sign: a bike backing up with the bars turned left swings its rear to the
+        // right, the same way a car reverses. Steering authority itself depends on how fast you are
+        // going, not which way, hence the absolute values.
         double heading = state.headingDegrees;
-        if (speed > 1.0e-4D) {
+        if (Math.abs(speed) > MIN_ROLLING_SPEED) {
             double steerRate = tuning.maxSteerRateDegPerSec
-                * (tuning.steerSpeedFalloff / (tuning.steerSpeedFalloff + speed));
-            heading += steerClamped * steerRate * dt;
+                * (tuning.steerSpeedFalloff / (tuning.steerSpeedFalloff + Math.abs(speed)));
+            heading += Math.signum(speed) * steerClamped * steerRate * dt;
             heading = wrapDegrees(heading);
         }
 

@@ -18,7 +18,7 @@ class BatteryModelTest {
     /** The shipped bicycle and e-bike relationship, in pure-Java terms (see LdibConfig). */
     private static final BikeTuning BICYCLE = BikeTuning.defaultBicycle();
     private static final BikeTuning EBIKE =
-        new BikeTuning(11.0D, 5.5D, 9.0D, 0.6D, 0.010D, 90.0D, 5.0D);
+        new BikeTuning(11.0D, 5.5D, 9.0D, 0.6D, 0.010D, 90.0D, 5.0D, 1.2D, 2.0D);
 
     private static final double RESERVE = 0.15D;
 
@@ -125,7 +125,7 @@ class BatteryModelTest {
     @Test
     void assistBlendsOnlySpeedAndAcceleration() {
         // An unpowered baseline that differs in EVERY field, so anything wrongly interpolated shows up.
-        BikeTuning odd = new BikeTuning(1.0D, 1.0D, 99.0D, 9.9D, 0.9D, 999.0D, 99.0D);
+        BikeTuning odd = new BikeTuning(1.0D, 1.0D, 99.0D, 9.9D, 0.9D, 999.0D, 99.0D, 9.0D, 9.0D);
         BikeTuning blended = EBIKE.withAssist(odd, 0.0D);
         assertEquals(EBIKE.brakeDeceleration, blended.brakeDeceleration, 1.0e-9D,
             "a flat battery must not change the brakes");
@@ -134,6 +134,9 @@ class BatteryModelTest {
         assertEquals(EBIKE.maxSteerRateDegPerSec, blended.maxSteerRateDegPerSec, 1.0e-9D,
             "a flat battery must not change how the bike steers");
         assertEquals(EBIKE.steerSpeedFalloff, blended.steerSpeedFalloff, 1.0e-9D);
+        assertEquals(EBIKE.maxReverseSpeed, blended.maxReverseSpeed, 1.0e-9D,
+            "backing up is legwork — a flat battery must not change it");
+        assertEquals(EBIKE.reverseAcceleration, blended.reverseAcceleration, 1.0e-9D);
     }
 
     @Test

@@ -78,12 +78,80 @@ class BikePhysicsTest {
     }
 
     @Test
-    void brakingNeverReversesAParkedBike() {
+    void brakingStopsAtRestBeforeBackingUp() {
+        // The transition from braking to reversing must go THROUGH zero rather than sail past it:
+        // brake authority is 9 b/s^2 and reverse authority is 2, so a step that crossed the boundary
+        // in one go would fling the bike backwards at four times the speed it can actually be pushed.
+        BikeState s = pedalFromRest(10.0D);
+        boolean sawRest = false;
+        for (int i = 0; i < 20 * 5; i++) {
+            s = BikePhysics.step(s, -1.0D, 0.0D, TUNING, DT);
+            if (s.speed == 0.0D) {
+                sawRest = true;
+                break;
+            }
+        }
+        assertTrue(sawRest, "holding the brake from speed should come to rest exactly, was " + s.speed);
+    }
+
+    @Test
+    void holdingBackFromRestReversesSlowly() {
         BikeState s = BikeState.stationary(0.0D);
-        for (int i = 0; i < 40; i++) {
+        for (int i = 0; i < 20 * 10; i++) {
             s = BikePhysics.step(s, -1.0D, 0.0D, TUNING, DT);
         }
-        assertEquals(0.0D, s.speed, 1.0e-9D, "holding the brake at rest must keep speed at zero");
+        assertTrue(s.speed < 0.0D, "holding back from rest should walk the bike backwards");
+        assertTrue(s.speed >= -TUNING.maxReverseSpeed - 1.0e-9D,
+            "reverse must never exceed its ceiling, was " + s.speed);
+        // Backing up is a shuffle, not a ride: it must stay far below the forward top speed.
+        assertTrue(Math.abs(s.speed) < TUNING.maxSpeed / 3.0D,
+            "backing up should be much slower than riding, was " + s.speed);
+    }
+
+    @Test
+    void pedallingArrestsAReverseBeforeDrivingForward() {
+        BikeState s = BikeState.stationary(0.0D);
+        for (int i = 0; i < 20 * 5; i++) { // get it rolling backwards first
+            s = BikePhysics.step(s, -1.0D, 0.0D, TUNING, DT);
+        }
+        assertTrue(s.speed < -0.1D, "precondition: the bike is rolling backwards");
+        boolean sawRest = false;
+        for (int i = 0; i < 20 * 5; i++) {
+            s = BikePhysics.step(s, 1.0D, 0.0D, TUNING, DT);
+            if (s.speed == 0.0D) {
+                sawRest = true;
+                break;
+            }
+        }
+        assertTrue(sawRest, "W out of a reverse should stop at rest, not lurch through it");
+    }
+
+    @Test
+    void reversingSteersLikeBackingUpAVehicle() {
+        // Same bar input, opposite heading change: the rear end swings the other way when you are
+        // going backwards, exactly as reversing a car does.
+        BikeState forward = pedalFromRest(3.0D).withHeading(0.0D);
+        forward = BikePhysics.step(forward, 0.0D, 1.0D, TUNING, DT);
+
+        BikeState back = new BikeState(-1.0D, 0.0D);
+        back = BikePhysics.step(back, 0.0D, 1.0D, TUNING, DT);
+
+        assertTrue(forward.headingDegrees > 0.0D, "steering right while rolling forward increases yaw");
+        assertTrue(back.headingDegrees < 0.0D, "the same input while reversing must turn the other way");
+    }
+
+    @Test
+    void dragNeverAcceleratesAReversingBike() {
+        // Air drag written as v^2 rather than v*|v| is positive whichever way you go, which would have
+        // it PUSHING a reversing bike. Coasting backwards must only ever slow down.
+        BikeState s = new BikeState(-TUNING.maxReverseSpeed, 0.0D);
+        for (int i = 0; i < 20 * 20; i++) {
+            BikeState next = BikePhysics.step(s, 0.0D, 0.0D, TUNING, DT);
+            assertTrue(next.speed >= s.speed,
+                "coasting backwards must lose speed, went from " + s.speed + " to " + next.speed);
+            s = next;
+        }
+        assertTrue(s.speed > -0.05D, "a coasting reverse should roll to (near) rest, was " + s.speed);
     }
 
     @Test
@@ -111,7 +179,7 @@ class BikePhysicsTest {
         // Mirrors the bicycle-vs-e-bike relationship (LdibConfig.eBikeTuning): a higher assisted top
         // speed and brisker acceleration, everything else shared. Pinned here in pure-Java terms so
         // the "variants are data" promise is regression-tested without a game instance.
-        BikeTuning ebike = new BikeTuning(11.0D, 5.5D, 9.0D, 0.6D, 0.010D, 90.0D, 5.0D);
+        BikeTuning ebike = new BikeTuning(11.0D, 5.5D, 9.0D, 0.6D, 0.010D, 90.0D, 5.0D, 1.2D, 2.0D);
 
         assertTrue(BikePhysics.poweredEquilibriumSpeed(ebike)
                 > BikePhysics.poweredEquilibriumSpeed(TUNING),

@@ -87,11 +87,11 @@ public class EntityBike extends Entity {
     private static final double MAX_MOVE_STEP = 0.25D;
 
     /**
-     * Speed below which a riderless bike counts as parked and skips the handling model. Matches the
-     * threshold {@code BikePhysics} itself uses to decide a bike is too slow to steer, so the two
-     * agree on what "stopped" means.
+     * Speed below which a riderless bike counts as parked and skips the handling model. Shared with
+     * {@code BikePhysics}, which uses the same threshold to decide a bike is too slow to steer, so the
+     * two cannot drift apart on what "stopped" means.
      */
-    private static final double IDLE_SPEED = 1.0e-4D;
+    private static final double IDLE_SPEED = BikePhysics.MIN_ROLLING_SPEED;
 
     /**
      * Radians a wheel turns per block of ground rolled, for pure rolling (no slip): {@code angle =
@@ -396,16 +396,18 @@ public class EntityBike extends Entity {
         Entity controller = getControllingPassenger();
         if (controller instanceof EntityPlayer) {
             EntityPlayer rider = (EntityPlayer) controller;
-            // moveForward: +1 W (pedal), -1 S (brake). moveStrafing: +1 A (left), -1 D (right).
-            // A left turn decreases yaw, and BikePhysics adds steer to heading, so negate strafing.
+            // moveForward: +1 W (pedal), -1 S (brake, then back up). moveStrafing: +1 A (left),
+            // -1 D (right). A left turn decreases yaw, and BikePhysics adds steer to heading, so
+            // negate strafing.
             throttle = MathHelper.clamp(rider.moveForward, -1.0F, 1.0F);
             steer = -MathHelper.clamp(rider.moveStrafing, -1.0F, 1.0F);
         }
 
-        // Brake light: the rider is braking when applying reverse throttle (S). Set server-side; the
-        // synced flag lights the brake light on every observer's client.
+        // Brake light: S is the brake only while there is forward motion to scrub off — once the bike
+        // is stopped the same key is walking it backwards, and no bike lights up for that. Set
+        // server-side; the synced flag lights the brake light on every observer's client.
         if (!this.world.isRemote) {
-            this.dataManager.set(BRAKING, throttle < 0.0D);
+            this.dataManager.set(BRAKING, throttle < 0.0D && this.bikeSpeed > IDLE_SPEED);
         }
 
         // A parked bike — nobody aboard, already stopped — would step the model straight back to the
@@ -416,7 +418,7 @@ public class EntityBike extends Entity {
         // ticks, not just ridden ones, so that is the difference between a stocked share fleet costing
         // nothing and it costing a few hundred short-lived objects every tick. Gravity and the world
         // move below still run, so a bike whose ground is mined out still falls.
-        if (controller != null || this.bikeSpeed > IDLE_SPEED) {
+        if (controller != null || Math.abs(this.bikeSpeed) > IDLE_SPEED) {
             int subSteps = Math.max(1, LdibConfig.physicsSubSteps);
             double dt = LdibConstants.SECONDS_PER_TICK / subSteps;
             BikeTuning tuning = assistedTuning();
@@ -429,7 +431,10 @@ public class EntityBike extends Entity {
         }
 
         // Spend battery for the distance just covered under power. Server-side only: the synced charge
-        // is the truth, and a client running down its own copy would only race the server's.
+        // is the truth, and a client running down its own copy would only race the server's. Backing up
+        // is legwork on every variant, and it arrives here as a negative distance that
+        // BatteryModel.drain ignores — so a reversing rider spends nothing, and cannot regenerate
+        // either.
         if (!this.world.isRemote && throttle > 0.0D && variant().hasBattery()) {
             drainBattery(this.bikeSpeed * LdibConstants.SECONDS_PER_TICK);
         }
@@ -471,6 +476,14 @@ public class EntityBike extends Entity {
         if (!this.onGround) {
             this.motionY -= 0.08D;
         }
+
+        // How high a kerb this bike rides up, refreshed from config each tick rather than set once in
+        // the constructor: the physics config is pushed to clients on join (PacketSyncConfig), which
+        // happens long after any bike already sitting in a loaded chunk was built, and a client whose
+        // bikes stepped differently from the server's would desync exactly where the terrain is
+        // interesting. It is a static field read, not a Configuration lookup — the per-tick cost is a
+        // float store.
+        this.stepHeight = (float) LdibConfig.stepHeight;
 
         // Sub-step the world move() when moving fast: several small move() calls this tick instead of
         // one big jump. At MVP/e-bike/scooter speeds this is 1-2 steps; it keeps collision accurate at
@@ -621,7 +634,10 @@ public class EntityBike extends Entity {
         setCharge(compound.hasKey("Charge") ? compound.getDouble("Charge") : BatteryModel.FULL);
     }
 
-    /** Current forward speed in blocks/second — read by the renderer for wheel spin. */
+    /**
+     * Current ground speed in blocks/second, <b>signed</b> — negative while backing up. Read by the
+     * renderer for wheel spin, by the HUD, and by the ride sound.
+     */
     public double speed() {
         return this.bikeSpeed;
     }

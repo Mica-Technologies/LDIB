@@ -41,13 +41,27 @@ public final class BikeTuning {
      */
     public final double steerSpeedFalloff;
 
+    /**
+     * Top <b>backwards</b> speed, blocks/second, as a positive number; the model clamps speed to
+     * {@code [-maxReverseSpeed, maxSpeed]}. Backing up is walking the thing back with your feet on
+     * every variant we ship — no bike or scooter has a reverse gear — so this is a small fraction of
+     * the forward ceiling, and it stays out of {@link #withAssist}: a flat battery does not make you
+     * worse at pushing.
+     */
+    public final double maxReverseSpeed;
+
+    /** Acceleration while backing up, blocks/second². Deliberately weak — see {@link #maxReverseSpeed}. */
+    public final double reverseAcceleration;
+
     public BikeTuning(double maxSpeed,
                       double pedalAcceleration,
                       double brakeDeceleration,
                       double rollingResistance,
                       double airDrag,
                       double maxSteerRateDegPerSec,
-                      double steerSpeedFalloff) {
+                      double steerSpeedFalloff,
+                      double maxReverseSpeed,
+                      double reverseAcceleration) {
         this.maxSpeed = maxSpeed;
         this.pedalAcceleration = pedalAcceleration;
         this.brakeDeceleration = brakeDeceleration;
@@ -55,6 +69,8 @@ public final class BikeTuning {
         this.airDrag = airDrag;
         this.maxSteerRateDegPerSec = maxSteerRateDegPerSec;
         this.steerSpeedFalloff = steerSpeedFalloff;
+        this.maxReverseSpeed = maxReverseSpeed;
+        this.reverseAcceleration = reverseAcceleration;
     }
 
     /**
@@ -83,7 +99,9 @@ public final class BikeTuning {
             this.rollingResistance,
             this.airDrag,
             this.maxSteerRateDegPerSec,
-            this.steerSpeedFalloff);
+            this.steerSpeedFalloff,
+            this.maxReverseSpeed,
+            this.reverseAcceleration);
     }
 
     /**
@@ -98,6 +116,8 @@ public final class BikeTuning {
             /* rollingResistance     */ 0.6D,
             /* airDrag               */ 0.010D,
             /* maxSteerRateDegPerSec */ 90.0D,
-            /* steerSpeedFalloff     */ 5.0D);
+            /* steerSpeedFalloff     */ 5.0D,
+            /* maxReverseSpeed       */ 1.2D,
+            /* reverseAcceleration   */ 2.0D);
     }
 }
