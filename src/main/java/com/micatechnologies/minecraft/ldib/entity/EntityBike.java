@@ -634,9 +634,15 @@ public class EntityBike extends Entity {
         this.motionX = -Math.sin(yawRad) * perTick;
         this.motionZ = Math.cos(yawRad) * perTick;
 
-        // Gravity so the bike settles onto and follows terrain; move() zeroes it on the ground.
+        // Gravity so the bike settles onto and follows terrain; move() zeroes it on the ground. The
+        // 0.98 is vanilla's own air drag on falling entities, and it is what gives the fall a terminal
+        // velocity (0.08 * 0.98 / 0.02 ≈ 3.92 blocks/tick). Without it a bike dropped down a deep
+        // shaft or into the void accelerated without bound, and since move() sweeps its bounding box
+        // across the whole delta, an unbounded delta means an unbounded volume of blocks to collide
+        // against — a growing per-tick cost on an entity nobody is even looking at.
         if (!this.onGround) {
             this.motionY -= 0.08D;
+            this.motionY *= 0.98D;
         }
 
         // How high a kerb this bike rides up, refreshed from config each tick rather than set once in
@@ -653,17 +659,33 @@ public class EntityBike extends Entity {
         // server's per-packet "moved too quickly" check as faster variants arrive (master plan,
         // Appendix A.1). It does NOT change the net per-tick displacement, so the ride's speed is
         // unchanged. Distinct from physicsSubSteps, which sub-steps the handling model, not the move.
-        double horizontal = Math.sqrt(this.motionX * this.motionX + this.motionZ * this.motionZ);
-        int moveSteps = Math.max(1, (int) Math.ceil(horizontal / MAX_MOVE_STEP));
+        // The step count is taken from the FULL motion, vertical included: a bike in free fall has
+        // little horizontal speed but can be covering ~4 blocks a tick downward, and sizing the steps
+        // off the horizontal alone put all of that into one move().
+        double delta = Math.sqrt(this.motionX * this.motionX
+            + this.motionY * this.motionY + this.motionZ * this.motionZ);
+        int moveSteps = Math.max(1, (int) Math.ceil(delta / MAX_MOVE_STEP));
         double stepX = this.motionX / moveSteps;
         double stepY = this.motionY / moveSteps;
         double stepZ = this.motionZ / moveSteps;
         boolean hitWall = false;
+        int stepsTaken = 0;
         for (int i = 0; i < moveSteps; i++) {
             this.move(MoverType.SELF, stepX, stepY, stepZ);
+            stepsTaken++;
             if (this.collidedHorizontally) {
                 hitWall = true; // stop at the wall rather than grinding the remaining sub-steps into it
                 break;
+            }
+        }
+        // Stopping early at a wall must not stop the bike FALLING. Now that a fall is sub-stepped,
+        // abandoning the remaining steps would also abandon the vertical motion owed for this tick, so
+        // a bike scraping a wall on the way down would descend at a fraction of its proper rate — and
+        // keep doing so for as long as it stayed in contact. Pay the rest of the descent straight down.
+        if (hitWall && stepY != 0.0D) {
+            int remaining = moveSteps - stepsTaken;
+            if (remaining > 0) {
+                this.move(MoverType.SELF, 0.0D, stepY * remaining, 0.0D);
             }
         }
 
