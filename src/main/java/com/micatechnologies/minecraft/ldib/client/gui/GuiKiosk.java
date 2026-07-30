@@ -19,11 +19,23 @@ public class GuiKiosk extends GuiScreen {
 
     private static final int CHECK_OUT_BUTTON = 0;
 
+    /**
+     * Client ticks between station recounts. The screen used to recount from {@link #drawScreen},
+     * i.e. once per rendered frame — see {@link BikeShareStation#count} for why that was expensive
+     * enough to freeze a client. Four times a second is faster than anyone can dock a bike.
+     */
+    private static final int REFRESH_TICKS = 5;
+
     private final BlockPos kiosk;
     private final boolean hasSession;
     private final ShareTariff tariff;
     /** The "check out" button, kept so its enabled state can track live bike availability. */
     private GuiButton checkOutButton;
+
+    /** Cached station counts and the countdown to refreshing them; never read from the render path. */
+    private int bikes;
+    private int freeDocks;
+    private int refreshCooldown;
 
     public GuiKiosk(BlockPos kiosk, boolean hasSession, long startTick, ShareTariff tariff) {
         this.kiosk = kiosk;
@@ -40,6 +52,21 @@ public class GuiKiosk extends GuiScreen {
             this.buttonList.add(checkOutButton);
         }
         this.buttonList.add(new GuiButton(1, cx - 70, cy + 44, 140, 20, "Close"));
+        refreshCounts();
+    }
+
+    @Override
+    public void updateScreen() {
+        if (--refreshCooldown <= 0) {
+            refreshCounts();
+        }
+    }
+
+    private void refreshCounts() {
+        BikeShareStation.Counts counts = BikeShareStation.count(Minecraft.getMinecraft().world, kiosk);
+        this.bikes = counts.bikes;
+        this.freeDocks = counts.freeDocks;
+        this.refreshCooldown = REFRESH_TICKS;
     }
 
     @Override
@@ -58,15 +85,15 @@ public class GuiKiosk extends GuiScreen {
 
         drawCenteredString(this.fontRenderer, "Bike Share Station", cx, cy - 64, 0x55D6C6);
 
-        int bikes = BikeShareStation.countBikesAvailable(Minecraft.getMinecraft().world, kiosk);
-        int free = BikeShareStation.countFreeDocks(Minecraft.getMinecraft().world, kiosk);
+        // Counts come from the cache refreshed on the client tick (see refreshCounts) — recounting
+        // here would put a world scan on every rendered frame.
         // Reflect availability live: you can't check out with nothing to ride (the server enforces this
         // too — this just greys the button so the click isn't a dead end).
         if (checkOutButton != null) {
             checkOutButton.enabled = bikes > 0;
         }
         drawCenteredString(this.fontRenderer, bikes + " bike" + (bikes == 1 ? "" : "s") + " available", cx, cy - 46, 0xFFFFFF);
-        drawCenteredString(this.fontRenderer, free + " free dock" + (free == 1 ? "" : "s"), cx, cy - 34, 0xCCCCCC);
+        drawCenteredString(this.fontRenderer, freeDocks + " free dock" + (freeDocks == 1 ? "" : "s"), cx, cy - 34, 0xCCCCCC);
 
         if (tariff.isPaid()) {
             drawCenteredString(this.fontRenderer,

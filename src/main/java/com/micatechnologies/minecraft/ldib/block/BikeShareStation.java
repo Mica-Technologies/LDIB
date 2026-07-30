@@ -68,35 +68,66 @@ public final class BikeShareStation {
         return best;
     }
 
+    /** How full a station is: bikes waiting to be taken, and empty docks to return one to. */
+    public static final class Counts {
+        public final int bikes;
+        public final int freeDocks;
+
+        Counts(int bikes, int freeDocks) {
+            this.bikes = bikes;
+            this.freeDocks = freeDocks;
+        }
+    }
+
+    /**
+     * Both counts for the station anchored by {@code kiosk}, in one pass.
+     *
+     * <p><b>Walks the world's loaded tile entities rather than the blocks around the kiosk</b>, which
+     * is the same answer for a fraction of the work. The old form was a {@code (2r+1)³} cube of
+     * {@code getBlockState} + {@code getTileEntity} calls, run <i>twice</i> (once per count) — ~9.8k
+     * block reads at the default radius of 8, and {@code shareStationRadius} is configurable up to
+     * <b>64</b>, where one call is 2.1 million lookups. {@code GuiKiosk} was calling both of them from
+     * {@code drawScreen}, i.e. every rendered frame, so opening a kiosk on a large-radius server was a
+     * hard client freeze.</p>
+     *
+     * <p>Docks are tile entities, so the loaded-TE list is the smallest set that can possibly contain
+     * them; the cost is now proportional to how many tile entities exist nearby rather than to the
+     * cube of the radius. Semantics are unchanged — {@link #withinStation} applies exactly the cube
+     * test the scan did, and a TE is in that list precisely when its chunk is loaded, which is when
+     * the block scan could have seen it.</p>
+     */
+    public static Counts count(World world, BlockPos kiosk) {
+        int bikes = 0;
+        int freeDocks = 0;
+        // Indexed rather than for-each, and re-reading size() each step: this runs from a GUI on the
+        // client and from block interaction on the server, and neither wants to throw if something
+        // removes a tile entity underneath it.
+        java.util.List<TileEntity> loaded = world.loadedTileEntityList;
+        for (int i = 0; i < loaded.size(); i++) {
+            TileEntity te = loaded.get(i);
+            if (!(te instanceof TileEntityBikeDock) || te.isInvalid()) {
+                continue;
+            }
+            if (!withinStation(kiosk, te.getPos())) {
+                continue;
+            }
+            if (((TileEntityBikeDock) te).isOccupied()) {
+                bikes++;
+            } else {
+                freeDocks++;
+            }
+        }
+        return new Counts(bikes, freeDocks);
+    }
+
     /** Bikes currently docked (available to take) at the station anchored by {@code kiosk}. */
     public static int countBikesAvailable(World world, BlockPos kiosk) {
-        return countDocks(world, kiosk, true);
+        return count(world, kiosk).bikes;
     }
 
     /** Free (empty) docks at the station anchored by {@code kiosk} (spots to return a bike). */
     public static int countFreeDocks(World world, BlockPos kiosk) {
-        return countDocks(world, kiosk, false);
-    }
-
-    private static int countDocks(World world, BlockPos kiosk, boolean occupied) {
-        int r = radius();
-        int count = 0;
-        BlockPos.MutableBlockPos p = new BlockPos.MutableBlockPos();
-        for (int dx = -r; dx <= r; dx++) {
-            for (int dy = -r; dy <= r; dy++) {
-                for (int dz = -r; dz <= r; dz++) {
-                    p.setPos(kiosk.getX() + dx, kiosk.getY() + dy, kiosk.getZ() + dz);
-                    if (isDock(world, p)) {
-                        TileEntity te = world.getTileEntity(p);
-                        if (te instanceof TileEntityBikeDock
-                            && ((TileEntityBikeDock) te).isOccupied() == occupied) {
-                            count++;
-                        }
-                    }
-                }
-            }
-        }
-        return count;
+        return count(world, kiosk).freeDocks;
     }
 
     /** Start a rental for {@code player} at {@code kiosk}: validate, bill-gate, open a session, notify. */
