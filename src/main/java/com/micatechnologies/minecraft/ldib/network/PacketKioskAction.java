@@ -41,11 +41,27 @@ public class PacketKioskAction implements IMessage {
         buf.writeByte(action);
     }
 
+    /**
+     * How far (squared) a player may be from the kiosk they claim to be pressing buttons on.
+     *
+     * <p>The position in this packet is supplied by the client and was previously passed straight
+     * through to {@link BikeShareStation}, which only checked that the block there <i>is</i> a kiosk —
+     * so a modified client could start or end a rental at any kiosk in the world without going near
+     * one. Vanilla block reach is about 5 blocks; 8 leaves room for latency and for standing back from
+     * a two-block kiosk without being exploitable.</p>
+     */
+    private static final double MAX_REACH_SQ = 8.0D * 8.0D;
+
     public static class Handler implements IMessageHandler<PacketKioskAction, IMessage> {
         @Override
         public IMessage onMessage(PacketKioskAction msg, MessageContext ctx) {
             EntityPlayerMP player = ctx.getServerHandler().player;
             player.getServerWorld().addScheduledTask(() -> {
+                // Never trust a client-supplied position: verify the player is actually standing at
+                // the kiosk before acting on it.
+                if (player.getDistanceSq(msg.kiosk) > MAX_REACH_SQ) {
+                    return;
+                }
                 if (msg.action == CHECK_OUT) {
                     BikeShareStation.checkOut(player, msg.kiosk);
                 } else if (msg.action == END_RENTAL) {
