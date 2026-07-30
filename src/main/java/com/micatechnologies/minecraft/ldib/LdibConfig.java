@@ -163,6 +163,73 @@ public final class LdibConfig {
     /** Acceleration of a scooter with a flat battery, blocks/second². Kicking is slow work. */
     public static double scooterKickAcceleration = 2.0D;
 
+    // --- Terrain: slope and surface ------------------------------------------------------------
+
+    /**
+     * Gravity along a slope, blocks/second². <b>0 disables hill effort entirely</b> and restores the
+     * pre-terrain behaviour where a graded road is climbed at the same effort as a flat one.
+     * Deliberately not 9.81 — see {@link BikeTuning#slopeGravity}.
+     */
+    public static double slopeGravity = 4.5D;
+
+    /**
+     * Steepest slope the handling model will ever be told about, as rise over run. 0.35 is a 1-in-3
+     * road: brutal, and far beyond anything a real one is built at.
+     *
+     * <p>This is a <b>correctness</b> guard, not a taste one. The grade is measured from how far the
+     * bike actually rose over how far it travelled, and a kerb or slab step-up rises {@code stepHeight}
+     * in a few centimetres of run — arithmetically a cliff. Without this clamp every kerb would read
+     * as a mountain and stamp on the brakes.
+     */
+    public static double maxGrade = 0.35D;
+
+    /**
+     * How much of the way the measured slope moves toward its new reading each tick, {@code 0}–{@code 1}.
+     * Lower is smoother and laggier. Terrain is sampled from one tick of movement, which is noisy over
+     * slabs and stairs, so this is what turns a jittery signal into a hill you can feel.
+     */
+    public static double gradeSmoothing = 0.25D;
+
+    /** Traction multiplier for any surface not named in {@link #surfaceGrip}. 1 = ordinary ground. */
+    public static double defaultSurfaceGrip = 1.0D;
+
+    /** Rolling-resistance multiplier for any surface not named in {@link #surfaceGrip}. */
+    public static double defaultSurfaceRoll = 1.0D;
+
+    /**
+     * What each block feels like under a tyre: {@code registryName=grip,rollingResistanceMultiplier}.
+     *
+     * <p>Grip scales braking, steering and traction (not top speed); the roll multiplier scales how
+     * fast you lose speed coasting, which is what makes a made road worth riding on. An entry may
+     * contain one {@code *} wildcard — necessary rather than decorative, because road mods generate
+     * paint blocks per colour and the colour set is extensible at runtime.</p>
+     *
+     * <p>Defaults name Fureniku's Roads blocks (the deployment target) alongside vanilla ones. Naming
+     * a mod that isn't installed costs nothing: entries are matched by string, never resolved.</p>
+     */
+    public static String[] surfaceGrip = {
+        "# registryName=grip,rollMultiplier   (grip: 1 = dry tarmac, lower = slippery)",
+        "# One * wildcard allowed per entry. Unlisted blocks use defaultSurfaceGrip/Roll.",
+        "furenikusroads:road_block_*=1.0,0.92",
+        "furenikusroads:sidewalk*=1.0,1.0",
+        "furenikusroads:*_bike=1.0,0.88",
+        "furenikusroads:*_bike_icon=1.0,0.88",
+        "minecraft:concrete=1.0,0.95",
+        "minecraft:stone=1.0,1.0",
+        "minecraft:stonebrick=1.0,1.0",
+        "minecraft:grass_path=1.0,1.15",
+        "minecraft:gravel=0.80,1.45",
+        "minecraft:grass=0.90,1.55",
+        "minecraft:dirt=0.90,1.45",
+        "minecraft:sand=0.70,2.10",
+        "minecraft:soul_sand=0.60,3.00",
+        "minecraft:snow_layer=0.55,1.50",
+        "minecraft:snow=0.55,1.50",
+        "minecraft:ice=0.20,0.55",
+        "minecraft:packed_ice=0.20,0.55",
+        "minecraft:frosted_ice=0.20,0.55",
+    };
+
     /**
      * Physics sub-steps per game tick. One 50 ms step is coarse for steering; sub-stepping is the
      * cheap fix and costs integrator time only, never bandwidth.
@@ -228,7 +295,29 @@ public final class LdibConfig {
             onewheelMaxSpeed, onewheelAcceleration, onewheelBrakeDeceleration,
             onewheelMaxSteerRateDegPerSec, onewheelSteerSpeedFalloff,
             onewheelRangeBlocks, onewheelPushMaxSpeed, onewheelPushAcceleration,
+            slopeGravity, maxGrade, gradeSmoothing, defaultSurfaceGrip, defaultSurfaceRoll,
         };
+    }
+
+    /**
+     * The syncable <b>surface table</b>, which the {@code double[]} cannot carry.
+     *
+     * <p>It has to be synced for the same reason everything in {@link #captureSyncable()} does: what a
+     * block does to a bike changes movement <i>results</i>, so a client whose table differs from the
+     * server's predicts a different ride and rubber-bands. A client with no entry for a road the
+     * server treats as fast is exactly the visible-desync case the config sync exists to prevent.</p>
+     */
+    public static String[] captureSyncableSurfaces() {
+        return surfaceGrip.clone();
+    }
+
+    /** Apply a surface table from {@link #captureSyncableSurfaces()} and rebuild the lookup. */
+    public static void applySyncableSurfaces(String[] entries) {
+        if (entries == null) {
+            return;
+        }
+        surfaceGrip = entries.clone();
+        com.micatechnologies.minecraft.ldib.integration.RoadSurfaces.reload(surfaceGrip);
     }
 
     /**
@@ -279,6 +368,11 @@ public final class LdibConfig {
         onewheelRangeBlocks = at(v, 32, onewheelRangeBlocks);
         onewheelPushMaxSpeed = at(v, 33, onewheelPushMaxSpeed);
         onewheelPushAcceleration = at(v, 34, onewheelPushAcceleration);
+        slopeGravity = at(v, 35, slopeGravity);
+        maxGrade = at(v, 36, maxGrade);
+        gradeSmoothing = at(v, 37, gradeSmoothing);
+        defaultSurfaceGrip = at(v, 38, defaultSurfaceGrip);
+        defaultSurfaceRoll = at(v, 39, defaultSurfaceRoll);
     }
 
     /** {@code v[i]} if the sending server had that value, else {@code fallback} (keep our own). */
@@ -291,12 +385,14 @@ public final class LdibConfig {
      *
      * <p>Every factory below ends in the same {@link #reverseMaxSpeed} / {@link #reverseAcceleration}
      * pair, on purpose: backing any of these up is the rider shuffling it with their feet, and that is
-     * not a thing a motor or a bigger wheel makes you better at.</p>
+     * not a thing a motor or a bigger wheel makes you better at. They also all end in the same
+     * {@link #slopeGravity}, for a different reason — gravity on a slope is mass-independent, so no
+     * variant gets to feel a hill differently from another until we decide one should.</p>
      */
     public static BikeTuning bicycleTuning() {
         return new BikeTuning(maxSpeed, pedalAcceleration, brakeDeceleration,
             rollingResistance, airDrag, maxSteerRateDegPerSec, steerSpeedFalloff,
-            reverseMaxSpeed, reverseAcceleration);
+            reverseMaxSpeed, reverseAcceleration, slopeGravity);
     }
 
     /**
@@ -308,7 +404,7 @@ public final class LdibConfig {
     public static BikeTuning eBikeTuning() {
         return new BikeTuning(ebikeMaxSpeed, ebikePedalAcceleration, brakeDeceleration,
             rollingResistance, airDrag, maxSteerRateDegPerSec, steerSpeedFalloff,
-            reverseMaxSpeed, reverseAcceleration);
+            reverseMaxSpeed, reverseAcceleration, slopeGravity);
     }
 
     /**
@@ -319,7 +415,7 @@ public final class LdibConfig {
     public static BikeTuning scooterTuning() {
         return new BikeTuning(scooterMaxSpeed, scooterAcceleration, scooterBrakeDeceleration,
             rollingResistance, airDrag, scooterMaxSteerRateDegPerSec, scooterSteerSpeedFalloff,
-            reverseMaxSpeed, reverseAcceleration);
+            reverseMaxSpeed, reverseAcceleration, slopeGravity);
     }
 
     /**
@@ -330,7 +426,7 @@ public final class LdibConfig {
     public static BikeTuning scooterFastTuning() {
         return new BikeTuning(scooterFastMaxSpeed, scooterFastAcceleration, scooterBrakeDeceleration,
             rollingResistance, airDrag, scooterMaxSteerRateDegPerSec, scooterSteerSpeedFalloff,
-            reverseMaxSpeed, reverseAcceleration);
+            reverseMaxSpeed, reverseAcceleration, slopeGravity);
     }
 
     /**
@@ -341,7 +437,7 @@ public final class LdibConfig {
     public static BikeTuning scooterKickTuning() {
         return new BikeTuning(scooterKickMaxSpeed, scooterKickAcceleration, scooterBrakeDeceleration,
             rollingResistance, airDrag, scooterMaxSteerRateDegPerSec, scooterSteerSpeedFalloff,
-            reverseMaxSpeed, reverseAcceleration);
+            reverseMaxSpeed, reverseAcceleration, slopeGravity);
     }
 
     /**
@@ -354,7 +450,7 @@ public final class LdibConfig {
     public static BikeTuning onewheelTuning() {
         return new BikeTuning(onewheelMaxSpeed, onewheelAcceleration, onewheelBrakeDeceleration,
             rollingResistance, airDrag, onewheelMaxSteerRateDegPerSec, onewheelSteerSpeedFalloff,
-            reverseMaxSpeed, reverseAcceleration);
+            reverseMaxSpeed, reverseAcceleration, slopeGravity);
     }
 
     /**
@@ -370,7 +466,7 @@ public final class LdibConfig {
     public static BikeTuning onewheelPushTuning() {
         return new BikeTuning(onewheelPushMaxSpeed, onewheelPushAcceleration, onewheelBrakeDeceleration,
             rollingResistance, airDrag, onewheelMaxSteerRateDegPerSec, onewheelSteerSpeedFalloff,
-            reverseMaxSpeed, reverseAcceleration);
+            reverseMaxSpeed, reverseAcceleration, slopeGravity);
     }
 
     private static void load() {
@@ -411,6 +507,32 @@ public final class LdibConfig {
         physicsSubSteps = config.get(CATEGORY_PHYSICS, "physicsSubSteps", physicsSubSteps,
             "Physics sub-steps per game tick. Higher is smoother steering and costs CPU only.",
             1, 16).getInt();
+
+        slopeGravity = config.get(CATEGORY_PHYSICS, "slopeGravity", slopeGravity,
+            "Gravity along a slope, blocks/second^2 — how much hills cost to climb and give back on "
+                + "the way down. 0 disables hill effort entirely. Deliberately not 9.81: Minecraft's "
+                + "hills are steep and a real g makes a 1-in-3 road unrideable.", 0.0D, 30.0D).getDouble();
+        maxGrade = config.get(CATEGORY_PHYSICS, "maxGrade", maxGrade,
+            "Steepest slope (rise/run) the handling model is ever told about. This is a correctness "
+                + "guard, not a taste one: a kerb step-up rises stepHeight in a few centimetres of "
+                + "run, which is arithmetically a cliff, and without this clamp every kerb would "
+                + "read as a mountain.", 0.05D, 2.0D).getDouble();
+        gradeSmoothing = config.get(CATEGORY_PHYSICS, "gradeSmoothing", gradeSmoothing,
+            "How much of the way the measured slope moves toward its new reading each tick (0-1). "
+                + "Lower is smoother and laggier.", 0.01D, 1.0D).getDouble();
+        defaultSurfaceGrip = config.get(CATEGORY_PHYSICS, "defaultSurfaceGrip", defaultSurfaceGrip,
+            "Traction multiplier for any block not named in surfaceGrip.", 0.05D, 2.0D).getDouble();
+        defaultSurfaceRoll = config.get(CATEGORY_PHYSICS, "defaultSurfaceRoll", defaultSurfaceRoll,
+            "Rolling-resistance multiplier for any block not named in surfaceGrip.", 0.1D, 10.0D).getDouble();
+        surfaceGrip = config.get(CATEGORY_PHYSICS, "surfaceGrip", surfaceGrip,
+            "What each block feels like under a tyre: registryName=grip,rollMultiplier. Grip scales "
+                + "braking, steering and traction (never top speed); the roll multiplier scales how "
+                + "quickly you lose speed coasting, which is what makes a made road worth riding on. "
+                + "One * wildcard is allowed per entry — road mods generate paint blocks per colour "
+                + "and the colour set can grow at runtime, so patterns are the only form that stays "
+                + "correct. Naming a mod you don't have installed costs nothing. Lines starting with "
+                + "# are ignored.").getStringList();
+        com.micatechnologies.minecraft.ldib.integration.RoadSurfaces.reload(surfaceGrip);
         ebikeMaxSpeed = config.get(CATEGORY_PHYSICS, "ebikeMaxSpeed", ebikeMaxSpeed,
             "E-bike assisted top speed, blocks/second.", 1.0D, 60.0D).getDouble();
         ebikePedalAcceleration = config.get(CATEGORY_PHYSICS, "ebikePedalAcceleration",

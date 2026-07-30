@@ -6,6 +6,8 @@ import com.micatechnologies.minecraft.ldib.physics.BatteryModel;
 import com.micatechnologies.minecraft.ldib.physics.BikePhysics;
 import com.micatechnologies.minecraft.ldib.physics.BikeState;
 import com.micatechnologies.minecraft.ldib.physics.BikeTuning;
+import com.micatechnologies.minecraft.ldib.physics.Terrain;
+import com.micatechnologies.minecraft.ldib.integration.RoadSurfaces;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.MoverType;
 import com.micatechnologies.minecraft.ldib.item.LdibItems;
@@ -508,6 +510,86 @@ public class EntityBike extends Entity {
     // --- Simulation --------------------------------------------------------------------------
 
     /**
+     * The slope under this bike, as rise over run along its heading, smoothed across ticks.
+     *
+     * <p>Measured rather than probed, which is what makes it work on <i>any</i> terrain — vanilla
+     * slabs and stairs, a road mod's 1/16-graded hills, or something nobody has written yet — without
+     * knowing a single block's height semantics. See {@link #updateGrade()} for the catch.</p>
+     */
+    private double gradeSmoothed;
+
+    /** Cached terrain for this tick, rebuilt in {@link #onUpdate()} before the model runs. */
+    private Terrain terrain = Terrain.FLAT;
+
+    /**
+     * Horizontal travel along the heading, in blocks, below which a tick's movement is too small to
+     * divide by. At walking pace a tick covers ~0.2 blocks, so this only rejects a near-standstill —
+     * where the previous smoothed grade is the better answer anyway, because a rider stopped on a
+     * hill is still on it.
+     */
+    private static final double MIN_GRADE_RUN = 0.02D;
+
+    /**
+     * Re-measure the slope from the movement this tick actually produced.
+     *
+     * <p>Called <b>after</b> the world move and read on the <i>next</i> tick, which costs one tick of
+     * lag and buys terrain-independence: the alternative is probing block heights ahead and behind,
+     * which needs to understand every road mod's idea of how tall a block is.</p>
+     *
+     * <p>Three things stop this being naive:</p>
+     * <ul>
+     *   <li><b>Signed against the heading, not the direction of travel.</b> The run is the movement
+     *       projected onto the way the bike points, so a bike rolling backwards down a hill still
+     *       reports a positive (uphill) grade — which is what lets one gravity term in
+     *       {@code BikePhysics} handle rolling forward, rolling back and stalling without special
+     *       cases.</li>
+     *   <li><b>Clamped.</b> A kerb or slab step-up rises up to {@code stepHeight} in a couple of
+     *       centimetres of run, which divides out to a cliff face. Unclamped, every kerb in the world
+     *       would slam the brakes on. The clamp is what makes "a step is not a slope" true.</li>
+     *   <li><b>Ignored in the air.</b> Falling is all rise and no run; the entity's own gravity
+     *       already owns that, so the grade decays toward level rather than reporting a vertical drop
+     *       as an infinitely steep road.</li>
+     * </ul>
+     */
+    private void updateGrade() {
+        double smoothing = MathHelper.clamp(LdibConfig.gradeSmoothing, 0.01D, 1.0D);
+        if (!this.onGround) {
+            this.gradeSmoothed += (0.0D - this.gradeSmoothed) * smoothing;
+            return;
+        }
+        // prevPos* were set to this tick's starting position by super.onUpdate(), so this is exactly
+        // the movement the move() calls above produced.
+        double dy = this.posY - this.prevPosY;
+        double dx = this.posX - this.prevPosX;
+        double dz = this.posZ - this.prevPosZ;
+        double yawRad = Math.toRadians(this.rotationYaw);
+        double run = dx * -Math.sin(yawRad) + dz * Math.cos(yawRad);
+        if (Math.abs(run) < MIN_GRADE_RUN) {
+            return; // too little travel to divide by; keep the slope we last measured
+        }
+        double limit = Math.max(0.05D, LdibConfig.maxGrade);
+        double raw = MathHelper.clamp(dy / run, -limit, limit);
+        this.gradeSmoothed += (raw - this.gradeSmoothed) * smoothing;
+    }
+
+    /**
+     * The slope and surface to run this tick's model over.
+     *
+     * <p>One block read (two where the bike stands on a marking, which sits as its own non-colliding
+     * block on top of the real surface — see {@code RoadSurfaces}). Only called on a bike that is
+     * actually going to be stepped, so parked bikes cost nothing.</p>
+     */
+    private Terrain currentTerrain() {
+        double grade = LdibConfig.slopeGravity > 0.0D ? this.gradeSmoothed : 0.0D;
+        if (RoadSurfaces.isEmpty()) {
+            return grade == 0.0D ? Terrain.FLAT : Terrain.FLAT.withGrade(grade);
+        }
+        BlockPos standingOn = new BlockPos(this.posX,
+            this.getEntityBoundingBox().minY - 0.2D, this.posZ);
+        return RoadSurfaces.terrainAt(this.world, standingOn, grade);
+    }
+
+    /**
      * The handling to run this tick: the variant's tuning, scaled back toward its unpowered self by
      * whatever assist the battery can still deliver. A variant with no battery — or one whose range is
      * configured to 0, disabling the whole mechanic — gets its tuning untouched.
@@ -592,10 +674,15 @@ public class EntityBike extends Entity {
         } else if (controller != null || Math.abs(this.bikeSpeed) > IDLE_SPEED) {
             int subSteps = Math.max(1, LdibConfig.physicsSubSteps);
             double dt = LdibConstants.SECONDS_PER_TICK / subSteps;
-            BikeTuning tuning = assistedTuning();
+            // Sample the ground once per tick, not once per sub-step: the block under the bike cannot
+            // change mid-tick, and the slope is a smoothed measurement rather than an instant reading.
+            this.terrain = currentTerrain();
+            // Grip goes on LAST, after the battery's assist — assist decides what the motor offers,
+            // grip decides how much of it the ground will take (see BikeTuning#withGrip).
+            BikeTuning tuning = assistedTuning().withGrip(this.terrain.gripFactor);
             BikeState state = new BikeState(this.bikeSpeed, this.rotationYaw);
             for (int i = 0; i < subSteps; i++) {
-                state = BikePhysics.step(state, throttle, steer, tuning, dt);
+                state = BikePhysics.step(state, throttle, steer, tuning, this.terrain, dt);
             }
             this.bikeSpeed = state.speed;
             this.rotationYaw = (float) state.headingDegrees;
@@ -698,6 +785,12 @@ public class EntityBike extends Entity {
         if (hitWall && simulate) {
             this.bikeSpeed *= 0.5D;
         }
+
+        // Re-measure the slope from the movement that just happened, for the next tick to ride over.
+        // Must come after the move loop (that is where the rise and the run are produced) and before
+        // the server correction (which nudges position for reasons that have nothing to do with
+        // terrain, and would otherwise be read as a hill).
+        updateGrade();
 
         // Last: fold in a slice of whatever the server last said, on top of the motion above rather
         // than instead of it.

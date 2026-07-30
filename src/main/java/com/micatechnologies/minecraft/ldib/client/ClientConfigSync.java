@@ -18,22 +18,41 @@ public class ClientConfigSync {
     /** The client's own config, saved before the first server override; null when not overridden. */
     private double[] localSnapshot;
 
+    /** The client's own surface table, saved alongside {@link #localSnapshot}. */
+    private String[] localSurfaces;
+
     private ClientConfigSync() {
     }
 
-    /** Apply the server's values, snapshotting the client's own once so they can be restored later. */
-    public void apply(double[] serverValues) {
+    /**
+     * Apply the server's config, snapshotting the client's own once so it can be restored later.
+     *
+     * <p>Both snapshots are taken under the one {@code localSnapshot == null} guard so they can never
+     * come from different moments — restoring a numeric set from before a server override alongside a
+     * surface table from after it would leave the client running a config that never existed.</p>
+     *
+     * @param serverSurfaces the server's surface table, or {@code null} from a server too old to send
+     *                       one — in which case the client keeps its own, matching how the numeric
+     *                       array treats a short payload
+     */
+    public void apply(double[] serverValues, String[] serverSurfaces) {
         if (localSnapshot == null) {
             localSnapshot = LdibConfig.captureSyncable();
+            localSurfaces = LdibConfig.captureSyncableSurfaces();
         }
         LdibConfig.applySyncable(serverValues);
+        if (serverSurfaces != null) {
+            LdibConfig.applySyncableSurfaces(serverSurfaces);
+        }
     }
 
     @SubscribeEvent
     public void onDisconnect(FMLNetworkEvent.ClientDisconnectionFromServerEvent event) {
         if (localSnapshot != null) {
             LdibConfig.applySyncable(localSnapshot);
+            LdibConfig.applySyncableSurfaces(localSurfaces);
             localSnapshot = null;
+            localSurfaces = null;
         }
     }
 }

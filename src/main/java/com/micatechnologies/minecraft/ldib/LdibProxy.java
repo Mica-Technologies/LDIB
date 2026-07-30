@@ -25,8 +25,11 @@ public interface LdibProxy {
                       com.micatechnologies.minecraft.ldib.api.ShareTariff tariff);
 
     /**
-     * Apply movement config values pushed from the server on join (client only; a no-op on the
-     * server). The client snapshots its own values first and restores them on disconnect.
+     * Apply movement config pushed from the server on join (client only; a no-op on the server). The
+     * client snapshots its own values first and restores them on disconnect.
+     *
+     * @param values   the numeric tuning, from {@code LdibConfig.captureSyncable()}
+     * @param surfaces the surface table, or {@code null} from a server too old to send one
      */
-    void applySyncedConfig(double[] values);
+    void applySyncedConfig(double[] values, String[] surfaces);
 }

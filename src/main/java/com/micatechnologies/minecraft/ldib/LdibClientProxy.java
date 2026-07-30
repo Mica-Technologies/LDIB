@@ -77,9 +77,10 @@ public class LdibClientProxy extends LdibCommonProxy {
     }
 
     @Override
-    public void applySyncedConfig(double[] values) {
+    public void applySyncedConfig(double[] values, String[] surfaces) {
         net.minecraft.client.Minecraft.getMinecraft().addScheduledTask(
-            () -> com.micatechnologies.minecraft.ldib.client.ClientConfigSync.INSTANCE.apply(values));
+            () -> com.micatechnologies.minecraft.ldib.client.ClientConfigSync.INSTANCE
+                .apply(values, surfaces));
     }
 
     private static void bindModel(Item item) {

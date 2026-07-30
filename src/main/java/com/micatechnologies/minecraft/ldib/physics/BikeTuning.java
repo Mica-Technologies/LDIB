@@ -53,6 +53,29 @@ public final class BikeTuning {
     /** Acceleration while backing up, blocks/second². Deliberately weak — see {@link #maxReverseSpeed}. */
     public final double reverseAcceleration;
 
+    /**
+     * Gravity along a slope, blocks/second², as felt by a rideable pointing straight up a 45° hill
+     * would be {@code slopeGravity · sin(45°)}. Set to {@code 0} to switch hill effort off entirely.
+     *
+     * <p>Deliberately <b>not</b> 9.81. Minecraft's metre is generous and its hills are steep — a real
+     * g makes a 1-in-3 road physically unrideable on a bicycle, which is realistic and no fun. Treat
+     * it as a feel knob, not a physical constant.</p>
+     *
+     * <p>It lives here rather than being passed with {@link Terrain} because it belongs to the
+     * <i>vehicle's</i> numbers, alongside {@link #airDrag} and {@link #rollingResistance}, which are
+     * likewise shared across every variant today but are free to differ tomorrow. The slope itself is
+     * a property of the world and stays in {@code Terrain}; how hard this machine feels it is a
+     * property of the machine.</p>
+     */
+    public final double slopeGravity;
+
+    /** Slope gravity for a tuning built without one — see {@link #slopeGravity}. */
+    public static final double DEFAULT_SLOPE_GRAVITY = 4.5D;
+
+    /**
+     * A tuning with the default slope gravity. Kept so the nine numbers that predate hills still
+     * construct a valid tuning — every existing caller and test uses this form.
+     */
     public BikeTuning(double maxSpeed,
                       double pedalAcceleration,
                       double brakeDeceleration,
@@ -62,6 +85,21 @@ public final class BikeTuning {
                       double steerSpeedFalloff,
                       double maxReverseSpeed,
                       double reverseAcceleration) {
+        this(maxSpeed, pedalAcceleration, brakeDeceleration, rollingResistance, airDrag,
+            maxSteerRateDegPerSec, steerSpeedFalloff, maxReverseSpeed, reverseAcceleration,
+            DEFAULT_SLOPE_GRAVITY);
+    }
+
+    public BikeTuning(double maxSpeed,
+                      double pedalAcceleration,
+                      double brakeDeceleration,
+                      double rollingResistance,
+                      double airDrag,
+                      double maxSteerRateDegPerSec,
+                      double steerSpeedFalloff,
+                      double maxReverseSpeed,
+                      double reverseAcceleration,
+                      double slopeGravity) {
         this.maxSpeed = maxSpeed;
         this.pedalAcceleration = pedalAcceleration;
         this.brakeDeceleration = brakeDeceleration;
@@ -71,6 +109,7 @@ public final class BikeTuning {
         this.steerSpeedFalloff = steerSpeedFalloff;
         this.maxReverseSpeed = maxReverseSpeed;
         this.reverseAcceleration = reverseAcceleration;
+        this.slopeGravity = slopeGravity;
     }
 
     /**
@@ -101,7 +140,45 @@ public final class BikeTuning {
             this.maxSteerRateDegPerSec,
             this.steerSpeedFalloff,
             this.maxReverseSpeed,
-            this.reverseAcceleration);
+            this.reverseAcceleration,
+            this.slopeGravity);
+    }
+
+    /** Least and most traction a surface may claim, so a mistyped config cannot break the handling. */
+    private static final double MIN_GRIP = 0.05D;
+    private static final double MAX_GRIP = 2.0D;
+
+    /**
+     * This tuning as ridden on a surface offering {@code grip} times normal traction — what the bike
+     * actually handles like on ice, gravel or wet stone.
+     *
+     * <p>Traction limits three things, and they are exactly the three scaled here: how hard you can
+     * <b>brake</b>, how sharply you can <b>steer</b>, and how much power you can put down before the
+     * tyre gives up ({@link #pedalAcceleration}). It deliberately leaves {@link #maxSpeed} alone —
+     * ice does not lower the speed a bike is capable of, it lowers your ability to get there and your
+     * options once you have. It also leaves {@link #rollingResistance} alone, because that is a
+     * different physical thing and {@link Terrain#rollFactor} already carries it.</p>
+     *
+     * <p><b>Apply this last</b>, after {@link #withAssist}. Assist decides what the motor is offering;
+     * grip decides how much of that the ground will accept. Composed the other way round, a fresh
+     * battery would quietly undo the ice.</p>
+     */
+    public BikeTuning withGrip(double grip) {
+        double g = grip < MIN_GRIP ? MIN_GRIP : (grip > MAX_GRIP ? MAX_GRIP : grip);
+        if (g == 1.0D) {
+            return this;
+        }
+        return new BikeTuning(
+            this.maxSpeed,
+            this.pedalAcceleration * g,
+            this.brakeDeceleration * g,
+            this.rollingResistance,
+            this.airDrag,
+            this.maxSteerRateDegPerSec * g,
+            this.steerSpeedFalloff,
+            this.maxReverseSpeed,
+            this.reverseAcceleration,
+            this.slopeGravity);
     }
 
     /**

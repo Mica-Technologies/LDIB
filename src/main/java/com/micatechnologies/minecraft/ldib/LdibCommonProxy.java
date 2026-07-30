@@ -30,7 +30,7 @@ public class LdibCommonProxy implements LdibProxy {
     }
 
     @Override
-    public void applySyncedConfig(double[] values) {
+    public void applySyncedConfig(double[] values, String[] surfaces) {
         // The server owns the authoritative config; nothing to apply on the server side.
     }
 }

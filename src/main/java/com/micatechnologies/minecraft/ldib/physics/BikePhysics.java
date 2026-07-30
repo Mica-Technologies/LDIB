@@ -8,9 +8,12 @@ package com.micatechnologies.minecraft.ldib.physics;
  * <p>The model is deliberately 2-D and kinematic, not a rigid-body simulation: a bike ridden with
  * WASD has effectively two controllable degrees of freedom — forward speed and heading — and
  * modelling only those keeps the result deterministic across client and server, which is what the
- * ride needs to feel smooth under Minecraft's netcode. Vertical motion (gravity, going up a slope)
- * is the entity layer's job, not this class's; here the world is flat and the only axis is "along
- * the current heading".</p>
+ * ride needs to feel smooth under Minecraft's netcode. The only axis here is still "along the current
+ * heading" — <b>vertical motion remains the entity layer's job</b>, and this class never learns where
+ * the bike is. What it does now know is how steeply the road tilts and what it is paved with, handed
+ * in as a {@link Terrain}: three plain numbers the entity derives from the world. Slope costs or gives
+ * speed along the heading; the surface scales rolling resistance and (through
+ * {@link BikeTuning#withGrip}) braking, steering and traction.</p>
  *
  * <p><b>Integration.</b> Like RCMC's integrator this updates speed first, then heading, then lets
  * the caller derive position from the <i>new</i> speed — semi-implicit (symplectic) Euler, which
@@ -43,6 +46,23 @@ public final class BikePhysics {
      */
     public static BikeState step(BikeState state, double throttle, double steer,
                                  BikeTuning tuning, double dt) {
+        return step(state, throttle, steer, tuning, Terrain.FLAT, dt);
+    }
+
+    /**
+     * Advance one step over {@code terrain} — the same model, told what the ground is doing.
+     *
+     * <p>Terrain enters in exactly two places, both of them existing terms rather than new machinery:
+     * gravity along the slope is one more acceleration on the speed, and the surface scales the
+     * rolling resistance that was already there. The third thing a surface does — limit braking,
+     * steering and traction — is not handled here at all; it is folded into {@code tuning} by
+     * {@link BikeTuning#withGrip} before the call, so this method stays a function of its arguments
+     * and the tuning stays the single description of "how this machine behaves right now".</p>
+     *
+     * @param terrain the slope and surface under the rideable; {@link Terrain#FLAT} for none
+     */
+    public static BikeState step(BikeState state, double throttle, double steer,
+                                 BikeTuning tuning, Terrain terrain, double dt) {
         double throttleClamped = clamp(throttle, -1.0D, 1.0D);
         double steerClamped = clamp(steer, -1.0D, 1.0D);
 
@@ -66,15 +86,29 @@ public final class BikePhysics {
                 : speed + tuning.reverseAcceleration * throttleClamped * dt;
         }
 
+        // Gravity along the slope. Signed against the HEADING, not against the direction of travel,
+        // which is what makes one term cover every case: pointing uphill it bleeds off forward speed
+        // and hurries a backwards roll, pointing downhill it does the reverse, and a rider who stalls
+        // on a climb rolls back down without any of it being special-cased. Mass-independent, as
+        // gravity on a slope is — a heavier bike is not slower uphill in a kinematic model.
+        speed -= tuning.slopeGravity * terrain.slopeSine() * dt;
+
         // Rolling resistance: exponential decay, timestep-independent. Decaying toward zero is already
         // the right thing at negative speed — it opposes a reversing bike exactly as it opposes a
-        // rolling one.
-        speed *= Math.exp(-tuning.rollingResistance * dt);
+        // rolling one. Scaled by the surface, which is the main reason a made road is worth riding on.
+        speed *= Math.exp(-tuning.rollingResistance * terrain.rollFactor * dt);
         // Quadratic air drag, written as -k*v*|v| rather than -k*v^2 so it stays a *resistance*: the
         // squared form is positive whichever way you are going, which would have it shoving a
         // reversing bike backwards ever faster.
         speed -= tuning.airDrag * speed * Math.abs(speed) * dt;
 
+        // The ceilings hold on a descent too, and that is deliberate. Letting gravity carry a rider
+        // past maxSpeed downhill would be more realistic and more fun, but maxSpeed is the mod's
+        // safety margin against the server's "vehicle moved too quickly" kick (master plan, Appendix
+        // A.1), and a long hill is exactly where that margin would be spent. So a descent means
+        // reaching top speed without pedalling, not exceeding it. The reverse ceiling matters even
+        // more now: it is what stops a bike abandoned facing up a hill from rolling away at ever-
+        // increasing speed. Revisit only alongside the fast-vehicle work, never on its own.
         if (speed > tuning.maxSpeed) {
             speed = tuning.maxSpeed;
         }
