@@ -25,8 +25,20 @@ public class GrabPromptHud {
 
     private static final int STATION_RADIUS = 4;
 
+    /**
+     * How long a computed prompt is reused before the station scan runs again, in milliseconds.
+     *
+     * <p>Wall-clock rather than a frame counter on purpose. This used to recompute on
+     * {@code frame++ % 5}, which sounds like "a few times a second" and is — at 60 fps. At 150 fps it
+     * is 30 times a second, and each one is a 9×9×9 block scan, so the cost of a cosmetic hint scaled
+     * with the player's frame rate: about 22,000 block lookups a second, every second they were
+     * riding, worst on exactly the machines running fastest. Four times a second is plenty for a
+     * prompt about a block you have to ride up to.</p>
+     */
+    private static final long REFRESH_INTERVAL_MS = 250L;
+
     private String cachedPrompt;
-    private int frame;
+    private long nextRefreshAt;
 
     @SubscribeEvent
     public void onRenderOverlay(RenderGameOverlayEvent.Post event) {
@@ -37,8 +49,10 @@ public class GrabPromptHud {
         if (mc.player == null || mc.world == null) {
             return;
         }
-        if (frame++ % 5 == 0) { // recompute a few times a second, not every frame
+        long now = System.currentTimeMillis();
+        if (now >= nextRefreshAt) {
             cachedPrompt = computePrompt(mc);
+            nextRefreshAt = now + REFRESH_INTERVAL_MS;
         }
         if (cachedPrompt == null) {
             return;
