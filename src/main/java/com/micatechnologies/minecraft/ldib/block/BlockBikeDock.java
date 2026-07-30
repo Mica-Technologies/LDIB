@@ -220,8 +220,15 @@ public class BlockBikeDock extends Block {
                 return true;
             }
         } else if (BikeShareStation.findKioskNear(world, pos) != null) {
-            // No session: station docks send you to the kiosk; standalone docks self-serve.
+            // No session: station docks send you to the kiosk; standalone docks self-serve (below).
             status(player, "Check out at the station kiosk first.");
+            return true;
+        } else if (!com.micatechnologies.minecraft.ldib.api.BikeShareBilling.active().canCheckOut(player)) {
+            // Self-serve at a standalone dock still opens a real (billable) rental, so it has to pass
+            // the same affordability gate the kiosk applies.
+            status(player, String.format(
+                "You can't take a bike right now — you need at least %.2f to cover the unlock fee.",
+                com.micatechnologies.minecraft.ldib.api.BikeShareBilling.activeTariff().unlockFee));
             return true;
         }
 
@@ -239,11 +246,20 @@ public class BlockBikeDock extends Block {
         BikeVariant variant = dock.undock();
         release(world, spot, variant);
         network.bikeCheckedOut();
+        long now = world.getTotalWorldTime();
         if (session != null) {
-            network.markBikeTaken(player.getUniqueID(), world.getTotalWorldTime());
+            network.markBikeTaken(player.getUniqueID(), now);
             status(player, "Enjoy your ride — return it at any station dock when you're done.");
         } else {
-            status(player, "Checked out a bike. (" + network.available() + " available in the network)");
+            // Standalone self-serve. This used to hand over a bike and open NO session, so
+            // completeSessionOnReturn found nothing on the way back and the ride was silently free —
+            // any dock placed out of range of a kiosk was a free vending machine. Open the rental here
+            // and start its clock, anchored to this dock (there is no kiosk to anchor it to; nothing
+            // reads that field again once the bike is marked taken).
+            network.startSession(player.getUniqueID(), pos, now);
+            network.markBikeTaken(player.getUniqueID(), now);
+            status(player, "Checked out a bike — return it at any dock. ("
+                + network.available() + " available in the network)");
         }
         return true;
     }
