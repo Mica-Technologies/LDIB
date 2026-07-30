@@ -165,6 +165,63 @@ public final class BikeShareStation {
         }
     }
 
+    /**
+     * End {@code player}'s open rental from a kiosk — the escape hatch for a rental that cannot be
+     * closed the normal way.
+     *
+     * <p>Docking a bike used to be the <b>only</b> thing that called
+     * {@link BikeShareNetwork#endSession}, with no cancel, no timeout and no command anywhere. So any
+     * rental whose bike stopped being dockable — the last bike at the station taken by someone else
+     * before you reached a dock, a bike lost down a ravine, a player who logged off mid-ride, a bike
+     * ridden into another dimension (sessions are per-world) — left that player locked out of the
+     * entire network permanently, told "you already have a bike-share session running" forever with
+     * no way to clear it.</p>
+     *
+     * <p>Billing follows what actually happened, which is also what a real operator would do:</p>
+     * <ul>
+     *   <li><b>No bike taken</b> — nothing was ridden, so nothing is charged. This is the common case
+     *       (checked out, then found the station empty) and it should cost nothing.</li>
+     *   <li><b>Bike taken</b> — the rental is billed for the time so far, exactly as returning it
+     *       would have been. The bike stays in the world as fleet property: it still cannot be
+     *       pocketed, and anyone can dock it, so ending the rental abandons the bike rather than
+     *       stealing it.</li>
+     * </ul>
+     */
+    public static void endRental(EntityPlayer player, BlockPos kiosk) {
+        World world = player.world;
+        if (world.isRemote || !isKiosk(world, kiosk)) {
+            return;
+        }
+        BikeShareNetwork network = BikeShareNetwork.get(world);
+        BikeShareNetwork.Session session = network.getSession(player.getUniqueID());
+        if (session == null) {
+            status(player, "You don't have a rental open.");
+            return;
+        }
+        boolean tookABike = session.bikeTaken;
+        long clockStart = session.takenTick > 0L ? session.takenTick : session.startTick;
+        network.endSession(player.getUniqueID());
+
+        if (!tookABike) {
+            status(player, "Rental cancelled — you never took a bike, so there's nothing to pay.");
+            return;
+        }
+        // Same clock and rounding as returning at a dock (BlockBikeDock#completeSessionOnReturn):
+        // whole minutes, minimum one, from when the bike was actually taken.
+        long elapsed = Math.max(0L, world.getTotalWorldTime() - clockStart);
+        int minutes = (int) Math.max(1L, (elapsed + 1199L) / 1200L);
+        // The variant isn't recorded on the session, so bill at the pedal-bike rate — the cheapest,
+        // which is the right way to round a charge the system cannot fully evidence.
+        double charged = BikeShareBilling.active()
+            .charge(player, com.micatechnologies.minecraft.ldib.entity.BikeVariant.BICYCLE, minutes);
+        String message = "Rental ended after " + minutes + (minutes == 1 ? " minute." : " minutes.");
+        if (charged > 0.0D) {
+            message += String.format(" You were charged %.2f.", charged);
+        }
+        message += " Your bike is still out there — it's fleet property and anyone can dock it.";
+        player.sendMessage(new TextComponentString(message));
+    }
+
     static void status(EntityPlayer player, String message) {
         player.sendStatusMessage(new TextComponentString(message), false);
     }

@@ -9,13 +9,14 @@ import net.minecraftforge.fml.common.network.simpleimpl.IMessageHandler;
 import net.minecraftforge.fml.common.network.simpleimpl.MessageContext;
 
 /**
- * Client → server: the player pressed a button on a kiosk screen (currently only "check out").
- * Handled on the server thread; all the validation and session mutation lives in
- * {@link BikeShareStation}.
+ * Client → server: the player pressed a button on a kiosk screen. Handled on the server thread; all
+ * the validation and session mutation lives in {@link BikeShareStation}.
  */
 public class PacketKioskAction implements IMessage {
 
     public static final int CHECK_OUT = 0;
+    /** End an open rental from the kiosk — the only way out of one that doesn't involve docking. */
+    public static final int END_RENTAL = 1;
 
     private BlockPos kiosk;
     private int action;
@@ -47,6 +48,8 @@ public class PacketKioskAction implements IMessage {
             player.getServerWorld().addScheduledTask(() -> {
                 if (msg.action == CHECK_OUT) {
                     BikeShareStation.checkOut(player, msg.kiosk);
+                } else if (msg.action == END_RENTAL) {
+                    BikeShareStation.endRental(player, msg.kiosk);
                 }
             });
             return null;

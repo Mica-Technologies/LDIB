@@ -18,6 +18,8 @@ import net.minecraft.util.math.BlockPos;
 public class GuiKiosk extends GuiScreen {
 
     private static final int CHECK_OUT_BUTTON = 0;
+    private static final int CLOSE_BUTTON = 1;
+    private static final int END_RENTAL_BUTTON = 2;
 
     /**
      * Client ticks between station recounts. The screen used to recount from {@link #drawScreen},
@@ -47,11 +49,15 @@ public class GuiKiosk extends GuiScreen {
     public void initGui() {
         int cx = this.width / 2;
         int cy = this.height / 2;
-        if (!hasSession) {
+        if (hasSession) {
+            // The way out of a rental whose bike you can no longer dock. Without it, losing the bike
+            // locks you out of the whole network for good — see BikeShareStation#endRental.
+            this.buttonList.add(new GuiButton(END_RENTAL_BUTTON, cx - 70, cy + 20, 140, 20, "End rental"));
+        } else {
             checkOutButton = new GuiButton(CHECK_OUT_BUTTON, cx - 70, cy + 20, 140, 20, "Check out a bike");
             this.buttonList.add(checkOutButton);
         }
-        this.buttonList.add(new GuiButton(1, cx - 70, cy + 44, 140, 20, "Close"));
+        this.buttonList.add(new GuiButton(CLOSE_BUTTON, cx - 70, cy + 44, 140, 20, "Close"));
         refreshCounts();
     }
 
@@ -73,6 +79,8 @@ public class GuiKiosk extends GuiScreen {
     protected void actionPerformed(GuiButton button) {
         if (button.id == CHECK_OUT_BUTTON) {
             LdibNetwork.CHANNEL.sendToServer(new PacketKioskAction(kiosk, PacketKioskAction.CHECK_OUT));
+        } else if (button.id == END_RENTAL_BUTTON) {
+            LdibNetwork.CHANNEL.sendToServer(new PacketKioskAction(kiosk, PacketKioskAction.END_RENTAL));
         }
         this.mc.displayGuiScreen(null);
     }
@@ -108,6 +116,7 @@ public class GuiKiosk extends GuiScreen {
 
         if (hasSession) {
             drawCenteredString(this.fontRenderer, "Rental active — take a bike from any dock here.", cx, cy + 6, 0x66FF66);
+            drawCenteredString(this.fontRenderer, "Lost your bike? End the rental to free your account.", cx, cy + 76, 0x999999);
         } else {
             drawCenteredString(this.fontRenderer, "Check out, then take a bike from any dock.", cx, cy + 6, 0xAAAAAA);
         }
