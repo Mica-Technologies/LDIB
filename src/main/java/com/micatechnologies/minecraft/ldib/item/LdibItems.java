@@ -27,6 +27,9 @@ public final class LdibItems {
     /** The performance scooter — same standing scooter, ~22 mph instead of ~12. */
     public static ItemBike scooterFast;
 
+    /** The one-wheel board — standalone: no dock, no rack, you just pick it up. */
+    public static ItemBike onewheel;
+
     private LdibItems() {
         throw new AssertionError("No instances.");
     }
@@ -36,6 +39,7 @@ public final class LdibItems {
         ebike = LdibRegistry.addItem(new ItemBike(BikeVariant.EBIKE));
         scooter = LdibRegistry.addItem(new ItemBike(BikeVariant.SCOOTER));
         scooterFast = LdibRegistry.addItem(new ItemBike(BikeVariant.SCOOTER_FAST));
+        onewheel = LdibRegistry.addItem(new ItemBike(BikeVariant.ONEWHEEL));
     }
 
     /**
@@ -52,6 +56,9 @@ public final class LdibItems {
         }
         if (variant == BikeVariant.SCOOTER_FAST) {
             return scooterFast;
+        }
+        if (variant == BikeVariant.ONEWHEEL) {
+            return onewheel;
         }
         return bike;
     }

@@ -72,12 +72,20 @@ Two changes, together:
 
 1. **Sync the speed** (`EntityBike.SPEED`, quantised by `SPEED_SYNC_STEP`). An observer can then
    integrate `(speed, heading)` exactly as the server does and keep the bike *moving* between updates.
-   It also fixes three things that were quietly reading zero on every screen but the rider's: wheel
-   spin, lean, and the riding sound.
+   It also fixes things that were quietly reading zero on every screen but the rider's: wheel spin
+   and the riding sound.
 2. **Treat a tracker update as an error, not a destination.** `setPositionAndRotationDirect` stores
    the difference; `applyServerCorrection` folds it in over `TRACKER_UPDATE_INTERVAL` ticks, so one
    correction finishes just as the next update lands. Beyond `CORRECTION_SNAP_DISTANCE` it snaps
    instead — sliding smoothly across ten blocks would be stranger to watch than a cut.
+
+**And a lesson the second change taught the hard way.** Deferring the correction to the bottom of
+`onUpdate` moved *when* `rotationYaw` changes on an observing client, and the cosmetic lean — which
+reads `rotationYaw - prevRotationYaw` and sat above the correction — silently lost its only input
+there. Remote bikes stopped leaning and stopped turning their bars, and nothing failed loudly: the
+number just became zero, on every screen but the rider's. The lean/steer easing now lives in
+`updateCosmeticLeanAndSteer()`, called last, with the ordering requirement written on the method. Any
+future code that reads a per-tick yaw delta has the same trap waiting for it.
 
 The dividing line is `simulate = !world.isRemote || canPassengerSteer()`: the server and the rider's own
 client predict, everyone else follows. `canPassengerSteer()` is vanilla's own "is this the local

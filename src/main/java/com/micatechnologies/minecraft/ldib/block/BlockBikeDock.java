@@ -160,6 +160,13 @@ public class BlockBikeDock extends Block {
             presenting = ((EntityBike) player.getRidingEntity()).variant();
         }
 
+        // A standalone rideable has no business here at all — say so before the occupied/free split,
+        // so the answer is the same whichever dock you walked up to (see BikeVariant#usesStations).
+        if (presenting != null && !presenting.usesStations()) {
+            status(player, "A one-wheel isn't part of the share network — just pick it up and carry it.");
+            return true;
+        }
+
         if (dock.isOccupied()) {
             if (presenting != null) {
                 status(player, "This dock is occupied. Return your bike at a free dock.");
@@ -274,6 +281,12 @@ public class BlockBikeDock extends Block {
         if (world.isRemote || bike == null || bike.isDead || !bike.isShare()) {
             return false; // docks only take public bike-share bikes; personal bikes go on racks
         }
+        if (!bike.variant().usesStations()) {
+            // Belt and braces: a standalone variant can never carry the share flag, because the only
+            // things that set it are the two dock paths this guard closes. Cheap insurance against a
+            // future path (or a hand-edited NBT) producing a board the fleet would then swallow.
+            return false;
+        }
         TileEntityBikeDock dock = dockTE(world, pos);
         if (dock == null || dock.isOccupied()) {
             return false;
@@ -317,6 +330,10 @@ public class BlockBikeDock extends Block {
         }
         TileEntityBikeDock dock = dockTE(world, pos);
         if (dock == null) {
+            return;
+        }
+        if (!variant.usesStations()) {
+            status(player, "A one-wheel can't be added to the share network — it has no frame to dock.");
             return;
         }
         if (dock.isOccupied()) {

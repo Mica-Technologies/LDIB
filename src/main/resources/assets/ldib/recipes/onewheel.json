@@ -1,0 +1,14 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "pattern": [
+    "L L",
+    "IRI",
+    " I "
+  ],
+  "key": {
+    "I": { "item": "minecraft:iron_ingot" },
+    "R": { "item": "minecraft:redstone_block" },
+    "L": { "item": "minecraft:leather" }
+  },
+  "result": { "item": "ldib:onewheel" }
+}

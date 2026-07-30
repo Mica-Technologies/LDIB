@@ -21,6 +21,8 @@ public final class RideableModels {
     private static final ModelBike SHARE_EBIKE_MODEL = new ModelBike(true, true);
     private static final ModelScooter SCOOTER_MODEL = new ModelScooter(false);
     private static final ModelScooter SCOOTER_FAST_MODEL = new ModelScooter(true);
+    /** The one-wheel board. No share variant — it never joins the fleet (BikeVariant#usesStations). */
+    private static final ModelOnewheel ONEWHEEL_MODEL = new ModelOnewheel();
 
     private RideableModels() {
         throw new AssertionError("No instances.");
@@ -41,6 +43,9 @@ public final class RideableModels {
         }
         if (variant == BikeVariant.SCOOTER_FAST) {
             return SCOOTER_FAST_MODEL;
+        }
+        if (variant == BikeVariant.ONEWHEEL) {
+            return ONEWHEEL_MODEL;
         }
         return BICYCLE_MODEL;
     }

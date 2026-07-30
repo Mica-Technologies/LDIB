@@ -131,16 +131,24 @@ public class ItemBike extends Item {
     @Override
     public void addInformation(ItemStack stack, World world, java.util.List<String> tooltip,
                                net.minecraft.client.util.ITooltipFlag flag) {
+        boolean parkable = variant.usesStations();
         if (variant.hasBattery()) {
             double charge = chargeOf(stack);
             // Amber below the reserve, red when flat — the same warning the handling is about to give.
             String colour = charge <= 0.0D ? "§c" : (charge < LdibConfig.batteryReserveFraction ? "§6" : "§a");
             tooltip.add("§7Battery: " + colour + Math.round(charge * 100.0D) + "%");
-            tooltip.add("§8Lock it to a rack to charge it.");
+            // Racks charge what they hold, so that hint is only true of something a rack will take.
+            // What can't be racked recharges by swapping the pack — a shapeless recipe with a redstone
+            // block, which works because a crafted result carries no Charge tag and no tag means full.
+            tooltip.add(parkable
+                ? "§8Lock it to a rack to charge it."
+                : "§8Craft it with a redstone block to swap the battery.");
         }
         tooltip.add("§7Right-click the ground to place and ride.");
         tooltip.add("§7Sneak-right-click or hit it to pick it back up.");
-        tooltip.add("§7Ride up to a rack or dock and right-click to park it.");
+        tooltip.add(parkable
+            ? "§7Ride up to a rack or dock and right-click to park it."
+            : "§7Standalone — no docks or racks; just carry it.");
     }
 
     @Override

@@ -11,8 +11,8 @@ import net.minecraftforge.fml.common.eventhandler.SubscribeEvent;
 
 /**
  * Animates a rider's limbs while they ride an LDIB rideable so the player reads as "person riding"
- * rather than "prop glued to a seat": legs pedal in sync with the wheels on a seated bike, and take a
- * planted standing stance on a scooter.
+ * rather than "prop glued to a seat": legs pedal in sync with the wheels on a seated bike, take a
+ * planted standing stance on a scooter, and plant across the deck with the arms out on a one-wheel.
  *
  * <p>Purely cosmetic and client-only — reached exclusively from
  * {@link com.micatechnologies.minecraft.ldib.LdibClientProxy}, never from common code, so its
@@ -45,6 +45,20 @@ public class RiderPoseHandler {
 
     /** Near-straight leg with a small fore/aft split (radians) for a planted standing scooter stance. */
     private static final float STAND_SPLIT = 0.15F;
+
+    /**
+     * How far apart (radians) a board rider's feet plant along the deck.
+     *
+     * <p>{@code rotateAngleZ}, not {@code rotateAngleX} like the scooter's split, and that swap is the
+     * whole point: the body has already been turned 90° across the board
+     * ({@link com.micatechnologies.minecraft.ldib.entity.RiderPose#bodyYawOffset}), so in the rider's
+     * own frame the deck now runs left-to-right. A Z splay that reads as "legs apart" on a
+     * forward-facing rider is exactly a fore/aft stagger along the board on this one.</p>
+     */
+    private static final float BOARD_SPLAY = 0.22F;
+
+    /** How far a board rider's arms hang out from their sides (radians) — the balancing posture. */
+    private static final float BOARD_ARM_OUT = 0.45F;
 
     /** The player this handler posed in {@code Pre}; {@code null} unless a snapshot is pending restore. */
     private EntityPlayer posed;
@@ -88,7 +102,10 @@ public class RiderPoseHandler {
         this.savedRightArmZ = rightArm.rotateAngleZ;
         this.posed = player;
 
-        if (bike.variant().pose() == RiderPose.STANDING) {
+        RiderPose pose = bike.variant().pose();
+        if (pose == RiderPose.BOARD) {
+            applyBoardStance(leftLeg, rightLeg, leftArm, rightArm);
+        } else if (pose == RiderPose.STANDING) {
             applyStandingStance(leftLeg, rightLeg);
         } else {
             applyPedalStroke(bike, event.getPartialRenderTick(), leftLeg, rightLeg, leftArm, rightArm);
@@ -143,5 +160,28 @@ public class RiderPoseHandler {
         rightLeg.rotateAngleX = STAND_SPLIT;
         leftLeg.rotateAngleZ = 0.0F;
         rightLeg.rotateAngleZ = 0.0F;
+    }
+
+    /**
+     * Plants a one-wheel rider in a surf stance: feet apart along the board (a {@link #BOARD_SPLAY}
+     * splay in the already-turned body's frame — see that constant) and arms out from the sides,
+     * balancing. Nothing swings fore/aft, because there is no pedalling and nothing to hold on to.
+     *
+     * <p>The 90° turn that makes this a board stance rather than a wide standing one is not applied
+     * here at all — it is the body's render yaw, set server-side-agnostically in {@code
+     * EntityBike.updatePassenger} so every client and both sides of the ride agree on it. This method
+     * only does the part that is genuinely per-frame decoration.</p>
+     */
+    private void applyBoardStance(ModelRenderer leftLeg, ModelRenderer rightLeg,
+                                  ModelRenderer leftArm, ModelRenderer rightArm) {
+        leftLeg.rotateAngleX = 0.0F;
+        rightLeg.rotateAngleX = 0.0F;
+        leftLeg.rotateAngleZ = BOARD_SPLAY;
+        rightLeg.rotateAngleZ = -BOARD_SPLAY;
+
+        leftArm.rotateAngleX = 0.0F;
+        rightArm.rotateAngleX = 0.0F;
+        leftArm.rotateAngleZ = BOARD_ARM_OUT;
+        rightArm.rotateAngleZ = -BOARD_ARM_OUT;
     }
 }

@@ -59,6 +59,7 @@ public class LdibClientProxy extends LdibCommonProxy {
         bindModel(LdibItems.ebike);
         bindModel(LdibItems.scooter);
         bindModel(LdibItems.scooterFast);
+        bindModel(LdibItems.onewheel);
         for (com.micatechnologies.minecraft.ldib.block.BlockBikeRack rack
                 : com.micatechnologies.minecraft.ldib.block.LdibBlocks.racks()) {
             bindModel(Item.getItemFromBlock(rack));

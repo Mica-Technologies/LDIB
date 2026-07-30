@@ -23,6 +23,7 @@ import net.minecraft.world.World;
  *       to the fleet).</li>
  *   <li><b>A personal bike near a rack</b> → lock it there.</li>
  *   <li><b>A personal bike with no rack near</b> → pick it up into your inventory.</li>
+ *   <li><b>A standalone rideable</b> (the one-wheel) → always picked up; it belongs to neither system.</li>
  * </ul>
  *
  * <p>Server-authoritative. Reuses {@link BlockBikeRack#tryLockBike}/{@link BlockBikeDock#tryDockBike}
@@ -59,8 +60,12 @@ public final class RideableActions {
             status(player, "Ride this bike-share bike to a dock to return it.");
             return;
         }
+        // A standalone rideable skips the station hunt entirely — there is no rack it could go on, so
+        // searching for one could only ever end in "the nearest rack is full", which would be a
+        // baffling thing to be told about a board (see BikeVariant#usesStations).
+        boolean parkable = bike.variant().usesStations();
         // Personal bike: lock to a rack if one is near, otherwise pocket it.
-        if (park(world, player, bike, false)) {
+        if (parkable && park(world, player, bike, false)) {
             return;
         }
         bike.giveAsItem(player);

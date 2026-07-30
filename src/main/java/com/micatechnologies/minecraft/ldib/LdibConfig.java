@@ -111,6 +111,40 @@ public final class LdibConfig {
     /** Speed (blocks/s) at which scooter steering authority has halved. Lower = twitchier at speed. */
     public static double scooterSteerSpeedFalloff = 3.5D;
 
+    /**
+     * One-wheel top speed, blocks/second. Deliberately the same ~12 mph as the standard e-scooter
+     * (owner's call) rather than the ~20 mph a real self-balancing board manages — it is a city
+     * rideable in the same speed class as the scooter, not a faster one.
+     */
+    public static double onewheelMaxSpeed = 5.36D;
+
+    /** One-wheel acceleration, blocks/second². A hub motor directly under your feet pulls hard off the line. */
+    public static double onewheelAcceleration = 5.0D;
+
+    /**
+     * One-wheel braking, blocks/second². Weaker than the scooter's: braking is the motor pushing the
+     * one tyre back under you, and there is no brake lever to grab.
+     */
+    public static double onewheelBrakeDeceleration = 5.0D;
+
+    /** One-wheel max steering rate at low speed, degrees/second. Nothing here turns tighter. */
+    public static double onewheelMaxSteerRateDegPerSec = 150.0D;
+
+    /**
+     * Speed (blocks/s) at which one-wheel steering authority has halved. Higher than the scooter's
+     * 3.5 on purpose — a board still carves at speed, where a scooter's small wheels get twitchy.
+     */
+    public static double onewheelSteerSpeedFalloff = 6.0D;
+
+    /** Blocks a one-wheel travels under power on a full charge. 0 disables the battery. */
+    public static double onewheelRangeBlocks = 3500.0D;
+
+    /** Top speed of a one-wheel with a flat battery — walking it along at your side. Blocks/second. */
+    public static double onewheelPushMaxSpeed = 1.6D;
+
+    /** Acceleration of a one-wheel with a flat battery, blocks/second². */
+    public static double onewheelPushAcceleration = 1.5D;
+
     /** Blocks an e-bike travels under power on a full charge. 0 disables the battery entirely. */
     public static double ebikeRangeBlocks = 6000.0D;
 
@@ -191,6 +225,9 @@ public final class LdibConfig {
             ebikeRangeBlocks, scooterRangeBlocks, scooterFastRangeBlocks, batteryReserveFraction,
             scooterKickMaxSpeed, scooterKickAcceleration,
             reverseMaxSpeed, reverseAcceleration, stepHeight,
+            onewheelMaxSpeed, onewheelAcceleration, onewheelBrakeDeceleration,
+            onewheelMaxSteerRateDegPerSec, onewheelSteerSpeedFalloff,
+            onewheelRangeBlocks, onewheelPushMaxSpeed, onewheelPushAcceleration,
         };
     }
 
@@ -234,6 +271,14 @@ public final class LdibConfig {
         reverseMaxSpeed = at(v, 24, reverseMaxSpeed);
         reverseAcceleration = at(v, 25, reverseAcceleration);
         stepHeight = at(v, 26, stepHeight);
+        onewheelMaxSpeed = at(v, 27, onewheelMaxSpeed);
+        onewheelAcceleration = at(v, 28, onewheelAcceleration);
+        onewheelBrakeDeceleration = at(v, 29, onewheelBrakeDeceleration);
+        onewheelMaxSteerRateDegPerSec = at(v, 30, onewheelMaxSteerRateDegPerSec);
+        onewheelSteerSpeedFalloff = at(v, 31, onewheelSteerSpeedFalloff);
+        onewheelRangeBlocks = at(v, 32, onewheelRangeBlocks);
+        onewheelPushMaxSpeed = at(v, 33, onewheelPushMaxSpeed);
+        onewheelPushAcceleration = at(v, 34, onewheelPushAcceleration);
     }
 
     /** {@code v[i]} if the sending server had that value, else {@code fallback} (keep our own). */
@@ -296,6 +341,35 @@ public final class LdibConfig {
     public static BikeTuning scooterKickTuning() {
         return new BikeTuning(scooterKickMaxSpeed, scooterKickAcceleration, scooterBrakeDeceleration,
             rollingResistance, airDrag, scooterMaxSteerRateDegPerSec, scooterSteerSpeedFalloff,
+            reverseMaxSpeed, reverseAcceleration);
+    }
+
+    /**
+     * The one-wheel handling: scooter-class top speed with brisker acceleration, softer braking and
+     * markedly better steering — a self-balancing board carves, and it keeps carving at speed where a
+     * scooter's small wheels have gone twitchy ({@link #onewheelSteerSpeedFalloff} is the highest of
+     * any variant). Roll and air drag stay shared with everything else, same "variants are data"
+     * principle as the scooters: a handful of overridden numbers, no new movement code path.
+     */
+    public static BikeTuning onewheelTuning() {
+        return new BikeTuning(onewheelMaxSpeed, onewheelAcceleration, onewheelBrakeDeceleration,
+            rollingResistance, airDrag, onewheelMaxSteerRateDegPerSec, onewheelSteerSpeedFalloff,
+            reverseMaxSpeed, reverseAcceleration);
+    }
+
+    /**
+     * A one-wheel with a flat battery: a walking-pace crawl, with the powered board's braking and
+     * steering unchanged. This is the {@code unpowered} end of {@link BikeTuning#withAssist} for
+     * {@code ONEWHEEL}.
+     *
+     * <p>Slower even than the scooter's kick tuning, because there is nothing to kick — a dead board is
+     * being walked home, not scooted. It is deliberately <i>not</i> zero: a real self-balancing board
+     * with a flat battery genuinely will not carry you, but the rule this codebase already committed to
+     * with the scooter is that being stranded is not a fun mechanic.</p>
+     */
+    public static BikeTuning onewheelPushTuning() {
+        return new BikeTuning(onewheelPushMaxSpeed, onewheelPushAcceleration, onewheelBrakeDeceleration,
+            rollingResistance, airDrag, onewheelMaxSteerRateDegPerSec, onewheelSteerSpeedFalloff,
             reverseMaxSpeed, reverseAcceleration);
     }
 
@@ -380,6 +454,32 @@ public final class LdibConfig {
         scooterKickAcceleration = config.get(CATEGORY_PHYSICS, "scooterKickAcceleration",
             scooterKickAcceleration,
             "Acceleration of a scooter with a flat battery, blocks/second^2.", 0.1D, 50.0D).getDouble();
+
+        onewheelMaxSpeed = config.get(CATEGORY_PHYSICS, "onewheelMaxSpeed", onewheelMaxSpeed,
+            "One-wheel top speed, blocks/second (~12 mph, matched to the standard scooter).",
+            1.0D, 60.0D).getDouble();
+        onewheelAcceleration = config.get(CATEGORY_PHYSICS, "onewheelAcceleration", onewheelAcceleration,
+            "One-wheel acceleration, blocks/second^2.", 0.1D, 50.0D).getDouble();
+        onewheelBrakeDeceleration = config.get(CATEGORY_PHYSICS, "onewheelBrakeDeceleration",
+            onewheelBrakeDeceleration,
+            "One-wheel braking, blocks/second^2. No brake lever — this is the motor slowing the tyre.",
+            0.1D, 100.0D).getDouble();
+        onewheelMaxSteerRateDegPerSec = config.get(CATEGORY_PHYSICS, "onewheelMaxSteerRateDegPerSec",
+            onewheelMaxSteerRateDegPerSec, "One-wheel max steering rate at low speed, degrees/second.",
+            1.0D, 720.0D).getDouble();
+        onewheelSteerSpeedFalloff = config.get(CATEGORY_PHYSICS, "onewheelSteerSpeedFalloff",
+            onewheelSteerSpeedFalloff,
+            "Speed (blocks/s) at which one-wheel steering authority has halved. Higher than the "
+                + "scooter's, because a board still carves at speed.", 0.1D, 60.0D).getDouble();
+        onewheelRangeBlocks = config.get(CATEGORY_PHYSICS, "onewheelRangeBlocks", onewheelRangeBlocks,
+            "Blocks a one-wheel travels under power on a full charge. 0 disables the battery.",
+            0.0D, 1000000.0D).getDouble();
+        onewheelPushMaxSpeed = config.get(CATEGORY_PHYSICS, "onewheelPushMaxSpeed", onewheelPushMaxSpeed,
+            "Top speed of a one-wheel with a flat battery (walking it home), blocks/second.",
+            0.1D, 60.0D).getDouble();
+        onewheelPushAcceleration = config.get(CATEGORY_PHYSICS, "onewheelPushAcceleration",
+            onewheelPushAcceleration,
+            "Acceleration of a one-wheel with a flat battery, blocks/second^2.", 0.1D, 50.0D).getDouble();
 
         enableRideHud = config.get(CATEGORY_CLIENT, "enableRideHud", enableRideHud,
             "Show the live speed readout while riding.").getBoolean();

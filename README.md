@@ -3,11 +3,14 @@
 A Minecraft **1.12.2 Forge** mod that adds **rider-controlled bikes**: mount one and pedal, brake
 and steer it with WASD, using the vanilla riding mechanic rather than a retextured pig or minecart.
 
-Four rideables, each blocky and voxel-style and each done properly — real acceleration, coasting,
+Five rideables, each blocky and voxel-style and each done properly — real acceleration, coasting,
 braking and speed-dependent steering:
 
 - a **bicycle** and a faster **e-bike**
 - a **scooter** (~12 mph) and a **performance scooter** (~22 mph), ridden standing
+- a **one-wheel** (~12 mph) — one fat tyre between two foot pads, ridden *across* the board in a surf
+  stance with only your head turned down the road. It carves harder than anything else here and it is
+  **standalone**: no docks, no racks, no fleet. You pick it up and carry it.
 
 Plus the infrastructure around them: **owner-locked bike racks** in five styles (multi-block, and they
 show the bikes parked on them), and a **bike-share network** of docks and kiosks where you check a bike
@@ -68,7 +71,7 @@ com.micatechnologies.minecraft.ldib
 ├── entity/
 │   ├── EntityBike                 # the rider-controlled vehicle (common; server loads it)
 │   ├── BikeVariant                # "variants are data": tuning + skin + pose + battery per variant
-│   └── RiderPose                  # seated (bike) vs standing (scooter)
+│   └── RiderPose                  # seated (bike) / standing (scooter) / across the board (one-wheel)
 ├── item/                          # ItemBike, LdibItems — places the bike, boat-style
 ├── block/                         # racks, docks, kiosks + the bike-share network (WorldSavedData)
 ├── network/                       # LdibNetwork + packets (kiosk GUI, grab, config sync)

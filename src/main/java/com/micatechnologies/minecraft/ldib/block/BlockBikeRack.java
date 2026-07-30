@@ -180,6 +180,13 @@ public class BlockBikeRack extends Block {
             return true;
         }
 
+        // …and a rack locks a frame, which a board hasn't got (see BikeVariant#usesStations). Checked
+        // before the lock attempt below so the answer doesn't depend on whether the rack had a free slot.
+        if (toLock != null && !toLock.usesStations()) {
+            status(player, "There's nothing on a one-wheel to lock — carry it with you instead.");
+            return true;
+        }
+
         if (toLock != null && !rack.isFull()) {
             int slot = rack.firstFreeSlot();
             rack.lock(slot, player.getUniqueID(), player.getName(), toLock);
@@ -222,6 +229,9 @@ public class BlockBikeRack extends Block {
     public boolean tryLockBike(World world, BlockPos pos, EntityBike bike, EntityPlayer player) {
         if (world.isRemote || bike == null || bike.isDead || bike.isShare()) {
             return false; // racks are for personal bikes; share bikes go on docks
+        }
+        if (!bike.variant().usesStations()) {
+            return false; // and a board has no frame to lock — carried, not parked
         }
         IBlockState state = world.getBlockState(pos);
         TileEntityBikeRack rack = masterTE(world, pos, state);

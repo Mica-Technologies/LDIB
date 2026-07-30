@@ -1,0 +1,32 @@
+{
+  "parent": "minecraft:recipes/root",
+  "rewards": {
+    "recipes": [
+      "ldib:onewheel_recharge"
+    ]
+  },
+  "criteria": {
+    "has_onewheel": {
+      "trigger": "minecraft:inventory_changed",
+      "conditions": {
+        "items": [
+          {
+            "item": "ldib:onewheel"
+          }
+        ]
+      }
+    },
+    "has_the_recipe": {
+      "trigger": "minecraft:recipe_unlocked",
+      "conditions": {
+        "recipe": "ldib:onewheel_recharge"
+      }
+    }
+  },
+  "requirements": [
+    [
+      "has_onewheel",
+      "has_the_recipe"
+    ]
+  ]
+}

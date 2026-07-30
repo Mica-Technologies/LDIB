@@ -57,6 +57,15 @@ public class GrabPromptHud {
         EntityBike bike = (EntityBike) mc.player.getRidingEntity();
         String key = LdibKeyHandler.GRAB.getDisplayName();
         int kind = nearestStationKind(mc.world, bike);
+        if (kind == NONE) {
+            return null;
+        }
+        // A standalone rideable can't be parked at either kind of station, and a player who has ridden
+        // one up to a rack is precisely the player about to try. Say what the key actually does instead
+        // of going quiet — this is the one spot the answer is worth spending a prompt on.
+        if (!bike.variant().usesStations()) {
+            return "Press " + key + " to pick up the one-wheel";
+        }
         // Match the bike's kind to the station: share bikes return to docks, personal bikes lock to racks.
         if (bike.isShare() && kind == DOCK) {
             return "Press " + key + " to return to the dock";

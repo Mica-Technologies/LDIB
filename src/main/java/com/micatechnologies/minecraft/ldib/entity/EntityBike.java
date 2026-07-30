@@ -405,9 +405,11 @@ public class EntityBike extends Entity {
      * either juddered or fought the mouse. Where the rider is looking is now owned entirely by
      * {@code client/RiderLook}, on the frame, where the input is.</p>
      *
-     * <p>What stays is the part that genuinely belongs to the bike: {@code setRenderYawOffset} keeps
-     * the rider's <i>body</i> square with it, so looking over your shoulder turns your head rather than
-     * swivelling you out of the saddle. And the server — which has no frames and no camera — clamps the
+     * <p>What stays is the part that genuinely belongs to the bike: {@code setRenderYawOffset} puts the
+     * rider's <i>body</i> where the variant's {@link RiderPose} wants it — square with the frame on
+     * everything you face forward on, turned 90° across it on a board — so looking over your shoulder
+     * turns your head rather than swivelling you out of the saddle. And the server — which has no
+     * frames and no camera — clamps the
      * reported yaw, so that limit is enforced by the authority rather than trusted to a client.</p>
      *
      * <p>Nothing here feeds back into movement: {@link #onUpdate()} steers from {@code moveStrafing},
@@ -420,7 +422,12 @@ public class EntityBike extends Entity {
         }
         passenger.setPosition(this.posX,
             this.posY + this.getMountedYOffset() + passenger.getYOffset(), this.posZ);
-        passenger.setRenderYawOffset(this.rotationYaw);
+        // Square the rider's BODY with the rideable — turned out of the heading by whatever the pose
+        // asks for, which is 90° on a board (see RiderPose#bodyYawOffset) and nothing at all on
+        // anything you face forward on. Body only: the head is drawn relative to this, so a rider stood
+        // across a one-wheel still looks down the road, and the yaw limit below still measures from the
+        // heading rather than from the shoulders.
+        passenger.setRenderYawOffset(this.rotationYaw + variant().pose().bodyYawOffset());
         if (!this.world.isRemote) {
             clampRiderView(passenger);
         }
@@ -587,26 +594,6 @@ public class EntityBike extends Entity {
         this.wheelRotation +=
             (float) (this.bikeSpeed * LdibConstants.SECONDS_PER_TICK * WHEEL_RADIANS_PER_BLOCK);
 
-        // Cosmetic lean into turns: ease toward a target derived from this tick's heading change,
-        // rather than snapping straight to it, so the lean doesn't step at tick boundaries. Sign
-        // verified in-game 2026-07-22: negate so the bike leans INTO the turn (A/left leans left,
-        // D/right leans right).
-        float yawRate = MathHelper.wrapDegrees(this.rotationYaw - this.prevRotationYaw);
-        float leanTarget = MathHelper.clamp(-yawRate * LEAN_PER_YAW_RATE, -MAX_LEAN_DEG, MAX_LEAN_DEG);
-        this.prevBikeLean = this.bikeLean;
-        this.bikeLean += (leanTarget - this.bikeLean) * LEAN_SMOOTHING;
-
-        // Cosmetic front-wheel steer: same eased-toward-target treatment and same sign convention as
-        // the lean (negate the yaw rate) so the front assembly turns INTO the turn along with the
-        // lean — A/left cranks the bars left, D/right cranks them right. Presentational only; the
-        // physics heading is unchanged.
-        // +yawRate (opposite sign to the lean): a Y-axis steer and a Z-axis lean have opposite
-        // handedness under the renderer's scale(-1,-1,1), so the bars turn INTO the turn only with this
-        // sign. Confirmed in-game (was steering the wrong way with the lean's sign).
-        float steerTarget = MathHelper.clamp(yawRate * STEER_PER_YAW_RATE, -MAX_STEER_DEG, MAX_STEER_DEG);
-        this.prevBikeSteer = this.bikeSteer;
-        this.bikeSteer += (steerTarget - this.bikeSteer) * LEAN_SMOOTHING;
-
         // Turn (speed, heading) into this tick's horizontal motion. Minecraft forward for a yaw is
         // (-sin yaw, cos yaw).
         double perTick = this.bikeSpeed * LdibConstants.SECONDS_PER_TICK;
@@ -661,8 +648,45 @@ public class EntityBike extends Entity {
         // than instead of it.
         applyServerCorrection();
 
-        // Keep any riders seated and any nearby entities from clipping through.
+        updateCosmeticLeanAndSteer();
+
         this.setRotation(this.rotationYaw, this.rotationPitch);
+    }
+
+    /**
+     * Ease the cosmetic lean and front-assembly steer toward this tick's heading change.
+     *
+     * <p><b>Call this last, after {@link #applyServerCorrection()}, and nowhere else.</b> It derives
+     * everything from {@code rotationYaw - prevRotationYaw}, and the two things that move
+     * {@code rotationYaw} do so at opposite ends of {@link #onUpdate()}: the handling model sets it
+     * near the top (on the server and the rider's own client), while an observing client's only
+     * source of heading is the correction folded in at the very bottom. Read the delta in between —
+     * which is where this code used to live — and an observer sees exactly zero, every tick, forever.
+     *
+     * <p>That is not hypothetical: it is the regression this method exists to prevent a repeat of.
+     * When {@code applyServerCorrection} was introduced to stop observers watching a bike teleport
+     * (commit {@code 45f2dac}), it moved <i>when</i> {@code rotationYaw} changes on an observer to
+     * after this read, and the lean silently lost its only input on every screen but the rider's.
+     * Before that the tracker packet wrote the yaw directly between ticks, so the delta was there to
+     * be read and the lean worked. Nothing failed; the number just quietly became zero.
+     *
+     * <p>Purely presentational either way — nothing here feeds back into movement.</p>
+     */
+    private void updateCosmeticLeanAndSteer() {
+        // Sign verified in-game 2026-07-22: negate so the bike leans INTO the turn (A/left leans
+        // left, D/right leans right).
+        float yawRate = MathHelper.wrapDegrees(this.rotationYaw - this.prevRotationYaw);
+
+        float leanTarget = MathHelper.clamp(-yawRate * LEAN_PER_YAW_RATE, -MAX_LEAN_DEG, MAX_LEAN_DEG);
+        this.prevBikeLean = this.bikeLean;
+        this.bikeLean += (leanTarget - this.bikeLean) * LEAN_SMOOTHING;
+
+        // +yawRate (opposite sign to the lean): a Y-axis steer and a Z-axis lean have opposite
+        // handedness under the renderer's scale(-1,-1,1), so the bars turn INTO the turn only with
+        // this sign. Confirmed in-game (was steering the wrong way with the lean's sign).
+        float steerTarget = MathHelper.clamp(yawRate * STEER_PER_YAW_RATE, -MAX_STEER_DEG, MAX_STEER_DEG);
+        this.prevBikeSteer = this.bikeSteer;
+        this.bikeSteer += (steerTarget - this.bikeSteer) * LEAN_SMOOTHING;
     }
 
     // --- Following someone else's ride --------------------------------------------------------

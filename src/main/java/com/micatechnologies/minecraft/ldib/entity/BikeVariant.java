@@ -25,7 +25,12 @@ public enum BikeVariant {
     /** A stand-on kick scooter in the spirit of Bird / Segway — same physics stack, standing rider. */
     SCOOTER(2, "scooter", RiderPose.STANDING),
     /** A faster performance scooter (~22 mph vs the standard ~12) — same model, more speed. */
-    SCOOTER_FAST(3, "scooter_fast", RiderPose.STANDING);
+    SCOOTER_FAST(3, "scooter_fast", RiderPose.STANDING),
+    /**
+     * A self-balancing one-wheel board — one fat tyre between two foot pads, ridden across the board
+     * in a surf stance. The one <b>standalone</b> rideable: see {@link #usesStations()}.
+     */
+    ONEWHEEL(4, "onewheel", RiderPose.BOARD);
 
     private final int id;
     private final String key;
@@ -48,7 +53,25 @@ public enum BikeVariant {
      * only: read by the renderer, never by the physics.
      */
     public boolean hasLights() {
-        return this == EBIKE || this == SCOOTER || this == SCOOTER_FAST;
+        return this == EBIKE || this == SCOOTER || this == SCOOTER_FAST || this == ONEWHEEL;
+    }
+
+    /**
+     * Whether this variant has anything to do with the bike-share network or the rack infrastructure —
+     * kiosks, docks, the public fleet, and owner-locked racks. True for every bike and scooter.
+     *
+     * <p><b>False for {@link #ONEWHEEL}</b>, which is a standalone device by design. Both halves of
+     * that fall out of one physical fact, which is why one predicate covers them rather than two: a
+     * board has no frame. There is nothing for a rack's lock to pass through, and nothing for a dock's
+     * pedestal to grab by the wheel. So a one-wheel is never dispensed by a kiosk, never returned to a
+     * dock, never locked to a rack — you pick it up and carry it, which is what people do with them.</p>
+     *
+     * <p>Enforced at every entrance to that infrastructure: {@code BlockBikeDock} (both the ridden
+     * return and the operator stocking gesture), {@code BlockBikeRack}, and {@code RideableActions},
+     * which sends a one-wheel straight to the pick-up path instead of hunting for a rack.</p>
+     */
+    public boolean usesStations() {
+        return this != ONEWHEEL;
     }
 
     /** Stable network/NBT id. Never renumber. */
@@ -66,8 +89,18 @@ public enum BikeVariant {
         return new ResourceLocation(LdibConstants.MOD_NAMESPACE, "textures/entity/" + key + ".png");
     }
 
-    /** The muted public-fleet livery for this variant, {@code ldib:textures/entity/share_<key>.png}. */
+    /**
+     * The muted public-fleet livery for this variant, {@code ldib:textures/entity/share_<key>.png}.
+     *
+     * <p>A variant that never joins the fleet ({@link #usesStations()}) has no such skin painted, and
+     * falls back to its own. Nothing should ever ask — a share bike can only come from a dock, and a
+     * dock will not take one — but the fallback means the failure mode if something ever does is the
+     * right board rather than the missing-texture checkerboard.</p>
+     */
     public ResourceLocation shareTexture() {
+        if (!usesStations()) {
+            return texture();
+        }
         return new ResourceLocation(LdibConstants.MOD_NAMESPACE, "textures/entity/share_" + key + ".png");
     }
 
@@ -89,6 +122,9 @@ public enum BikeVariant {
         if (this == SCOOTER_FAST) {
             return LdibConfig.scooterFastTuning();
         }
+        if (this == ONEWHEEL) {
+            return LdibConfig.onewheelTuning();
+        }
         return LdibConfig.bicycleTuning();
     }
 
@@ -100,7 +136,7 @@ public enum BikeVariant {
      * pedal bike or an unlit e-bike would split them.
      */
     public boolean hasBattery() {
-        return this == EBIKE || this == SCOOTER || this == SCOOTER_FAST;
+        return this == EBIKE || this == SCOOTER || this == SCOOTER_FAST || this == ONEWHEEL;
     }
 
     /**
@@ -117,6 +153,9 @@ public enum BikeVariant {
         if (this == SCOOTER_FAST) {
             return LdibConfig.scooterFastRangeBlocks;
         }
+        if (this == ONEWHEEL) {
+            return LdibConfig.onewheelRangeBlocks;
+        }
         return 0.0D;
     }
 
@@ -127,7 +166,8 @@ public enum BikeVariant {
      * <p>A dead e-bike is just a (heavy) bicycle: it falls back to the pedal-bike numbers, so you can
      * always ride home under your own legs. A dead scooter has no legs to fall back on, so it gets its
      * own slow kick-along tuning rather than the bicycle's — being stranded is not a fun mechanic, but
-     * neither is a flat scooter that still does 22 mph.</p>
+     * neither is a flat scooter that still does 22 mph. A dead one-wheel is slower still: there is
+     * nothing to kick, so it is being walked rather than scooted.</p>
      */
     public BikeTuning unpoweredTuning() {
         if (this == EBIKE) {
@@ -135,6 +175,9 @@ public enum BikeVariant {
         }
         if (this == SCOOTER || this == SCOOTER_FAST) {
             return LdibConfig.scooterKickTuning();
+        }
+        if (this == ONEWHEEL) {
+            return LdibConfig.onewheelPushTuning();
         }
         return tuning();
     }

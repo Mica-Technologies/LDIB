@@ -50,9 +50,21 @@ public abstract class ModelRideable extends ModelBase {
     //   TYRE      (0, 0)         12 × 8       wheel rim segments + hub (bike hub 10×8, seg 12×7)
     //   FRAME     (16, 0)        12 × 20      bike frame tubes + lugs; scooter stem/fork/lug
     //                                         (scooter stem 8×20, lug 12×6)
-    //   ACCENT    (32, 0)        26 × 10      bike saddle + handlebar; scooter deck + handlebar
-    //                                         (scooter deck 26×10, handlebar 24×4)
+    //   ACCENT    (32, 0)        26 × 10      bike saddle + handlebar; scooter deck + handlebar;
+    //                                         one-wheel foot pads (scooter deck 26×10, pad 20×5)
     //   METAL     (64, 0)        16 × 5       scooter fender + small hardware (fender 16×5)
+    //   FATTYRE   (88, 0)        18 × 8       the one-wheel's fat slick — far too wide to share TYRE
+    //                                         (hub 18×8, rim seg 16×5)
+    //   SHELL     (0, 28)        24 × 8       one-wheel body: deck shells + end bumpers
+    //                                         (shell 24×8, bumper 18×7)
+    //   RAIL      (32, 28)       22 × 12      one-wheel side rails (22×12)
+    //
+    // The last three exist because the one-wheel's parts do not fit the regions the bike and scooter
+    // share, and the four original regions are boxed in by their neighbours: widening TYRE or FRAME in
+    // place would collide, and moving them would re-cut the UVs of models the owner has already signed
+    // off. New regions in the atlas's empty lower/right space cost nothing and touch nothing. (Note
+    // that shade() derives its gradient from the region's own w/h, so even *growing* a region in place
+    // would re-shade every part already using it.)
     //
     // Layout has ≥4 px of unpainted gap between regions, so a part sampling to the exact edge of
     // its footprint never bleeds into a neighbouring material. To move/resize a region, change the
@@ -62,6 +74,9 @@ public abstract class ModelRideable extends ModelBase {
     protected static final int FRAME_U = 16, FRAME_V = 0;
     protected static final int ACCENT_U = 32, ACCENT_V = 0;
     protected static final int METAL_U = 64, METAL_V = 0;
+    protected static final int FATTYRE_U = 88, FATTYRE_V = 0;
+    protected static final int SHELL_U = 0,  SHELL_V = 28;
+    protected static final int RAIL_U = 32,  RAIL_V = 28;
 
     /** Rim segments per wheel — a 12-gon tyre. */
     private static final int WHEEL_SEGMENTS = 12;
