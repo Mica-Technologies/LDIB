@@ -927,6 +927,30 @@ public class EntityBike extends Entity {
         return this.prevWheelRotation + (this.wheelRotation - this.prevWheelRotation) * partialTicks;
     }
 
+    /**
+     * Wheel turns per crank turn — a bicycle's gear ratio, and the reason a rider's legs go round
+     * slower than the wheels do.
+     *
+     * <p>The crank and the rider's legs were both driven straight off {@link #wheelRotation}, i.e.
+     * geared 1:1, which is not how a bicycle works and looked it: the wheel turns 2.5 rad per block
+     * ({@link #WHEEL_RADIANS_PER_BLOCK}), so a bicycle at its 7 blocks/s cruise pedalled at about
+     * <b>167 rpm</b> and an e-bike at 11 managed 262. Real cadence is 70–95. This divisor brings a
+     * bicycle at cruise to roughly 76 rpm.</p>
+     *
+     * <p>It lives here, on the entity, rather than in either client class because <b>two</b> things
+     * read it — the rider's legs in {@code RiderPoseHandler} and the crank and pedals in
+     * {@code ModelBike} — and they are only in phase with each other for as long as they agree on it.</p>
+     */
+    public static final float CRANK_GEAR_RATIO = 2.2F;
+
+    /**
+     * Interpolated crank angle in radians: {@link #wheelRotation} geared down by
+     * {@link #CRANK_GEAR_RATIO}. Drives the pedals and the rider's legs together.
+     */
+    public float crankRotation(float partialTicks) {
+        return wheelRotation(partialTicks) / CRANK_GEAR_RATIO;
+    }
+
     /** Interpolated cosmetic lean-into-the-turn angle, in degrees — read by the renderer each frame. */
     public float bikeLean(float partialTicks) {
         return this.prevBikeLean + (this.bikeLean - this.prevBikeLean) * partialTicks;

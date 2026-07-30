@@ -131,13 +131,15 @@ public class RiderPoseHandler {
 
     /**
      * Pedals a seated rider's legs about {@link #PEDAL_FORWARD_BIAS}, the two legs a half-cycle apart,
-     * driven by the ridden bike's interpolated wheel angle so the crank turns exactly as fast as the
-     * wheels roll and holds still when the bike is stopped. The thighs splay outward to clear the frame,
-     * and the arms reach forward to the bars.
+     * driven by the ridden bike's interpolated <b>crank</b> angle — the wheel angle geared down by
+     * {@link EntityBike#CRANK_GEAR_RATIO} — so the legs turn at a cadence a human could actually hold
+     * and hold still when the bike is stopped. {@code ModelBike} draws the pedals from the same ratio,
+     * which is what keeps feet and pedals together. The thighs splay outward to clear the frame, and
+     * the arms reach forward to the bars.
      */
     private void applyPedalStroke(EntityBike bike, float partialTicks, ModelRenderer leftLeg,
                                   ModelRenderer rightLeg, ModelRenderer leftArm, ModelRenderer rightArm) {
-        float phase = bike.wheelRotation(partialTicks);
+        float phase = bike.crankRotation(partialTicks);
 
         leftLeg.rotateAngleX = PEDAL_FORWARD_BIAS + PEDAL_AMPLITUDE * (float) Math.sin(phase);
         rightLeg.rotateAngleX = PEDAL_FORWARD_BIAS + PEDAL_AMPLITUDE * (float) Math.sin(phase + Math.PI);

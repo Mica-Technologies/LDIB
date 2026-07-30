@@ -210,12 +210,15 @@ public class ModelBike extends ModelRideable {
     public void setWheelSpin(float wheelAngle) {
         spinWheel(frontWheel, wheelAngle);
         spinWheel(rearWheel, wheelAngle);
-        // Same angle as the wheels, so the crank stays in phase with them (and with the rider's
-        // already-animated pedalling legs, which are driven from the same value). The right pedal
-        // shares the arm's angle; the left is a fixed half-turn (π) ahead — see the field comment.
-        crankArm.rotateAngleX = wheelAngle;
-        pedalRight.rotateAngleX = wheelAngle;
-        pedalLeft.rotateAngleX = wheelAngle + (float) Math.PI;
+        // The crank is GEARED DOWN from the wheels, like a real drivetrain — see
+        // EntityBike.CRANK_GEAR_RATIO for why (1:1 pedalled at ~167 rpm). The rider's legs read the
+        // same ratio through EntityBike.crankRotation, which is what keeps them in phase with these
+        // pedals; change it in one place only. The right pedal shares the arm's angle; the left is a
+        // fixed half-turn (π) ahead — see the field comment.
+        float crank = wheelAngle / com.micatechnologies.minecraft.ldib.entity.EntityBike.CRANK_GEAR_RATIO;
+        crankArm.rotateAngleX = crank;
+        pedalRight.rotateAngleX = crank;
+        pedalLeft.rotateAngleX = crank + (float) Math.PI;
     }
 
     @Override
