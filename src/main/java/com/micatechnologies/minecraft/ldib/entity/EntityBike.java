@@ -310,12 +310,17 @@ public class EntityBike extends Entity {
             return true;
         }
         // Sneak-right-click pockets the bike as an item — even the one you're riding: hop off first,
-        // then pick it up, so it's one gesture to put your bike away.
+        // then pick it up, so it's one gesture to put your bike away. A public fleet bike is the one
+        // thing this must not do (see canBePocketed): you still get off it, you just don't keep it.
         if (player.isSneaking()) {
             if (this.isPassenger(player)) {
                 this.removePassengers();
             }
             if (!this.isBeingRidden()) {
+                if (!canBePocketed()) {
+                    refusePocket(player);
+                    return true;
+                }
                 giveAsItem(player);
                 this.setDead();
             }
@@ -341,11 +346,39 @@ public class EntityBike extends Entity {
             return false;
         }
         if (source.getTrueSource() instanceof EntityPlayer && !this.isBeingRidden()) {
+            if (!canBePocketed()) {
+                refusePocket((EntityPlayer) source.getTrueSource());
+                return false; // and it does not die — punching the fleet must not delete it either
+            }
             giveAsItem((EntityPlayer) source.getTrueSource());
             this.setDead();
             return true;
         }
         return false;
+    }
+
+    /**
+     * Whether a player may take this bike away as an item.
+     *
+     * <p>False for a public bike-share bike, which belongs to the fleet and leaves it only through a
+     * dock. Both pick-up gestures — sneak-right-click and hitting it — went straight to
+     * {@link #giveAsItem} without asking, which made every checked-out or parked share bike free for
+     * anyone to take: the taker got a <i>personal</i> bike (the share flag lives on the entity, not
+     * the item, so it is simply lost), the fleet count silently dropped, the renter stayed on the hook
+     * for a session they could no longer end, and nobody was billed. Since only an operator can
+     * restock a dock, that made the fleet a strictly decreasing quantity.</p>
+     *
+     * <p>Every other entrance to the fleet already asked this question — {@code BlockBikeDock}
+     * ({@code isShare} required), {@code BlockBikeRack} ({@code isShare} refused) and
+     * {@code RideableActions} (routes share bikes to docks). These two were the gap.</p>
+     */
+    private boolean canBePocketed() {
+        return !isShare();
+    }
+
+    private void refusePocket(EntityPlayer player) {
+        player.sendStatusMessage(new net.minecraft.util.text.TextComponentString(
+            "That's a bike-share bike — ride it to a dock to return it."), true);
     }
 
     /** Park the ridden bike at the rack or dock the rider is looking at (within reach), if any. */
