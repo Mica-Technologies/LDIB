@@ -223,4 +223,113 @@ class TerrainPhysicsTest {
         assertEquals(6.0D, base.withGrip(0.5D).slopeGravity, EPS);
         assertEquals(6.0D, base.withAssist(BikeTuning.defaultBicycle(), 0.5D).slopeGravity, EPS);
     }
+
+    // --- Steps: kerbs, slabs and whole blocks --------------------------------------------------
+    //
+    // A step is not a slope, and the two are charged by different machinery: a grade is a rate inside
+    // step(), a lip is an event handled once by afterStepUp(). These pin the properties the mechanic
+    // was designed around — see BikeTuning#stepClimbSpeed.
+
+    /** A slab and a whole block, the two heights the feature exists to tell apart. */
+    private static final double SLAB = 0.5D;
+    private static final double BLOCK = 1.0D;
+
+    /** A bicycle at its cruising speed, which is what the defaults were tuned against. */
+    private static final double CRUISE = 7.0D;
+
+    @Test
+    void aStepCostsSpeedAndATallerStepCostsMore() {
+        double overSlab = BikePhysics.afterStepUp(CRUISE, SLAB, TUNING);
+        double overBlock = BikePhysics.afterStepUp(CRUISE, BLOCK, TUNING);
+        assertTrue(overSlab < CRUISE, "a slab should cost something: " + overSlab);
+        assertTrue(overBlock < overSlab,
+            "a whole block should cost more than a slab: " + overBlock + " vs " + overSlab);
+    }
+
+    @Test
+    void aTallerStepCostsDisproportionatelyMore() {
+        // The whole point of charging energy rather than speed. Doubling the height must more than
+        // double the speed lost, or a hillside is just a series of equal little taxes.
+        double slabLoss = CRUISE - BikePhysics.afterStepUp(CRUISE, SLAB, TUNING);
+        double blockLoss = CRUISE - BikePhysics.afterStepUp(CRUISE, BLOCK, TUNING);
+        assertTrue(blockLoss > slabLoss * 2.0D,
+            "a block should cost more than twice a slab, not exactly twice: "
+                + blockLoss + " vs " + slabLoss);
+    }
+
+    @Test
+    void momentumHelpsYouOverAKerb() {
+        // Fixed energy cost, so it is a small tax on a rider with speed and a wall to one crawling.
+        double fast = BikePhysics.afterStepUp(CRUISE, BLOCK, TUNING) / CRUISE;
+        double slow = BikePhysics.afterStepUp(2.0D, BLOCK, TUNING) / 2.0D;
+        assertTrue(fast > slow,
+            "carrying speed should preserve a bigger fraction of it: " + fast + " vs " + slow);
+    }
+
+    @Test
+    void aStepIsNeverADeadStop() {
+        // The floor that keeps a survival hillside from being a series of standing starts for the
+        // slower variants — a scooter has nothing like a full block's worth of energy to spend.
+        double crawling = BikePhysics.afterStepUp(1.0D, BLOCK, TUNING);
+        assertTrue(crawling > 0.0D, "a lip taller than your momentum must not stop you dead");
+        assertEquals(TUNING.stepClimbRetain, crawling, EPS,
+            "and what it leaves you is the retain floor");
+    }
+
+    @Test
+    void aStepDoesNotTurnYouRound() {
+        // Signed like every other speed in the model: a rideable walked backwards up a kerb pays the
+        // same price and keeps going backwards.
+        double backwards = BikePhysics.afterStepUp(-CRUISE, SLAB, TUNING);
+        assertTrue(backwards < 0.0D, "reversing over a kerb must stay reversing: " + backwards);
+        assertEquals(BikePhysics.afterStepUp(CRUISE, SLAB, TUNING), -backwards, EPS,
+            "and cost exactly what it costs going forwards");
+    }
+
+    @Test
+    void nothingIsChargedForFlatGroundOrADrop() {
+        assertEquals(CRUISE, BikePhysics.afterStepUp(CRUISE, 0.0D, TUNING), EPS);
+        assertEquals(CRUISE, BikePhysics.afterStepUp(CRUISE, -BLOCK, TUNING), EPS,
+            "dropping off a kerb lifts nothing, so it costs nothing here");
+    }
+
+    @Test
+    void zeroClimbSpeedRestoresFreeSteps() {
+        BikeTuning free = new BikeTuning(7.0D, 3.5D, 9.0D, 0.6D, 0.01D, 90.0D, 5.0D, 1.2D, 2.0D,
+            BikeTuning.DEFAULT_SLOPE_GRAVITY, 0.0D, BikeTuning.DEFAULT_STEP_CLIMB_RETAIN);
+        assertEquals(CRUISE, BikePhysics.afterStepUp(CRUISE, BLOCK, free), EPS,
+            "stepClimbSpeed = 0 must be exactly the behaviour from before kerbs cost anything");
+    }
+
+    @Test
+    void twoLipsInOneTickCostTheSameAsOneTallOne() {
+        // The entity measures rise over a whole tick, so it cannot see two separate steps. Energy
+        // adds, which is what makes that the same answer rather than an approximation of it.
+        double together = BikePhysics.afterStepUp(9.0D, SLAB + SLAB, TUNING);
+        double separately = BikePhysics.afterStepUp(BikePhysics.afterStepUp(9.0D, SLAB, TUNING),
+            SLAB, TUNING);
+        assertEquals(separately, together, 1.0e-9D);
+    }
+
+    @Test
+    void theStepCostIsTunedForABicycleAtCruise() {
+        // Pins the feel the defaults were chosen for, so retuning is a deliberate act: about an eighth
+        // of your speed to a slab, about a third to a whole block.
+        double slabLoss = 1.0D - BikePhysics.afterStepUp(CRUISE, SLAB, TUNING) / CRUISE;
+        double blockLoss = 1.0D - BikePhysics.afterStepUp(CRUISE, BLOCK, TUNING) / CRUISE;
+        assertTrue(slabLoss > 0.05D && slabLoss < 0.20D, "slab should be a dip, not a stop: " + slabLoss);
+        assertTrue(blockLoss > 0.25D && blockLoss < 0.45D,
+            "a whole block should be plainly felt and still rideable: " + blockLoss);
+    }
+
+    @Test
+    void stepClimbSurvivesBothDerivations() {
+        BikeTuning base = new BikeTuning(7.0D, 3.5D, 9.0D, 0.6D, 0.01D, 90.0D, 5.0D, 1.2D, 2.0D,
+            6.0D, 4.0D, 0.3D);
+        assertEquals(4.0D, base.withGrip(0.5D).stepClimbSpeed, EPS);
+        assertEquals(0.3D, base.withGrip(0.5D).stepClimbRetain, EPS);
+        assertEquals(4.0D, base.withAssist(BikeTuning.defaultBicycle(), 0.5D).stepClimbSpeed, EPS,
+            "a flat battery does not make you worse at kerbs");
+        assertEquals(0.3D, base.withAssist(BikeTuning.defaultBicycle(), 0.5D).stepClimbRetain, EPS);
+    }
 }

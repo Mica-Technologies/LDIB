@@ -81,21 +81,81 @@ through all five factories) and are deliberately excluded from `withAssist`. Bac
 shuffling the thing with their feet on all of them; a motor does not help with that, and a flat
 battery does not make you worse at it.
 
-## Kerbs, slabs and road hills
+## Kerbs, slabs and whole blocks
 
 The physics world is flat, but the world the entity moves through is not, and "flat" must not mean
 "stops dead at a 1/16-block lip". `EntityBike` sets vanilla's `stepHeight` (config `physics.stepHeight`,
-default **0.6** — the player's own value), so a rideable rolls over anything its rider could have
-walked over: kerbs, slabs, and the shallow graded blocks road mods such as Furenikus' Roads build
-hills out of. Those were previously walls, which is a bad look on a road bike on a road.
+default **1.0**), so a rideable rolls over kerbs, slabs, the shallow graded blocks road mods such as
+Furenikus' Roads build hills out of — and, at a full block, the ordinary one-block rises a survival
+world is made of. That is the difference between a machine for roads someone built for you and one you
+can actually get about on. It costs the tidy old justification for the number (0.6 was the player's own
+step height, so "a bike goes wherever its rider could walk"); a bike now climbs things its rider
+cannot, which is a fair description of a bike.
 
-That is `Entity.move()`'s own step-up doing the work, not new physics — the handling model never learns
-about it, and speed is unchanged by the climb. It is also why the wall-collision speed penalty is only
-applied on a *real* stop: a lip that gets stepped over never sets `collidedHorizontally` at all.
+The climb itself is `Entity.move()`'s own step-up, not new physics: the bounding box simply appears on
+top of the obstacle. It is also why the wall-collision speed penalty is only applied on a *real* stop —
+a lip that gets stepped over never sets `collidedHorizontally` at all.
 
-`stepHeight` answers **reachability** — can the bike get up this at all. Effort is a separate question,
-answered below by the grade; the two interact, because a step-up is a rise with almost no run and the
-grade measurement has to be stopped from reading it as a cliff.
+`stepHeight` answers **reachability**: can the bike get up this at all. Effort is a separate question
+with two separate answers, because the world offers two different kinds of climb.
+
+### Steps cost energy; slopes cost force
+
+A vanilla step-up is silent and instantaneous — you arrive on top at the speed you arrived at the
+bottom. Free at 0.6, absurd at 1.0: a rideable that clears a block for nothing is a rideable that
+ignores terrain. So a step is billed, by `BikePhysics.afterStepUp`, and **it is deliberately not part
+of `step()`**. Everything in there is a rate acting over `dt`; a lip is an *event* that happens in
+whatever fraction of a tick the wheel meets the face, and folding it into the per-second terms would
+make the answer depend on `physicsSubSteps`.
+
+The charge is kinetic energy — `v² -= stepClimbSpeed² · rise` — and choosing energy rather than speed
+is what makes two things riders expect fall out of one number instead of a table:
+
+- **A taller lip costs disproportionately more.** The cost lands in `v²` and the speed comes back out
+  through a square root, so a bicycle at its 7 blocks/s cruise gives up about an eighth of its speed to
+  a slab and about a third to a whole block — not twice as much, *more* than twice as much. That
+  asymmetry is the whole point of the mechanic.
+- **Momentum helps you over a kerb.** A fixed number of joules is a small tax on a rider with speed and
+  a wall to one crawling at the lip, exactly as on a real bicycle.
+
+`stepClimbSpeed` is deliberately larger than the `√(2gh)` a frictionless ramp would ask for: a wheel
+striking a vertical face is a collision, and most of what it takes goes to heat rather than to height.
+`stepClimbRetain` floors the result at a fraction of the incoming speed, and that floor is not a
+rounding detail — a scooter at 5.4 blocks/s has nowhere near a full block's worth of energy to spend,
+so without it *every* block-high rise would halt it and a hillside would be a series of standing
+starts. In practice `stepClimbSpeed` decides how a bicycle and an e-bike climb and `stepClimbRetain`
+decides how a scooter and a one-wheel do; at bicycle speeds the floor is never consulted.
+
+### Telling a step from a slope
+
+Both live on `EntityBike`, and they must not bill for the same centimetre. A grade is charged
+continuously inside `step()` via `Terrain.grade`, measured by `updateGrade()` from *this same rise* —
+so charging the whole tick's rise as a step would double-bill every graded road, and the deployment
+target grades its hills in sixteenths of a block.
+
+The split falls straight out of the clamp `updateGrade()` already applies. The steepest slope the model
+is ever told about is `maxGrade`, so `maxGrade · run` is the most rise a *slope* can account for over
+the distance just travelled, and everything above that line arrived as a step:
+
+```java
+stepRise = dy - maxGrade * run          // EntityBike.applyStepClimbCost()
+```
+
+One constant, two meanings, no double-billing, and — like `updateGrade()` itself — no need to ask a
+single block how tall it thinks it is. Consequences worth knowing rather than rediscovering:
+
+- A Fureniku 1/16 grade snap is fully absorbed by the allowance at every riding speed, so graded roads
+  stay free. `MIN_STEP_RISE` (0.15) holds that true for a rider crawling up one, where there is barely
+  any run to allow against.
+- A vanilla staircase is a 1-in-2 grade, steeper than `maxGrade`, so part of every stair is billed as a
+  step. That is the intended reading: a staircase is not a road.
+- The faster you go the more run there is, so the more of a lip the allowance absorbs. Carrying speed
+  at a kerb helps twice over, here and in the energy sum, and both point the way a real bicycle does.
+- Rise is measured over a whole tick, so two lips climbed in one tick are charged as one taller one.
+  Energy adds, so that is the same answer rather than an approximation of it.
+
+Charged only where the handling model is actually run — a spectator's copy owns none of its speed and
+must not invent a kerb the server never charged for.
 
 ## Terrain: what the ground does to the ride
 

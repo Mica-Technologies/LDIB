@@ -2,12 +2,13 @@
   "type": "minecraft:crafting_shaped",
   "pattern": [
     " L ",
-    "III",
+    "IBI",
     "I I"
   ],
   "key": {
     "L": { "item": "minecraft:leather" },
-    "I": { "item": "minecraft:iron_ingot" }
+    "I": { "item": "minecraft:iron_ingot" },
+    "B": { "item": "minecraft:iron_block" }
   },
   "result": { "item": "ldib:bike" }
 }

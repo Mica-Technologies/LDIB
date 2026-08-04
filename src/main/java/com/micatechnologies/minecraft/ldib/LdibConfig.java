@@ -74,15 +74,36 @@ public final class LdibConfig {
     public static double reverseAcceleration = 2.0D;
 
     /**
-     * How high a lip a rideable rolls straight over, in blocks — kerbs, slabs, and the shallow
-     * height-graded blocks road mods build hills out of.
+     * How high a lip a rideable rolls straight over, in blocks — kerbs, slabs, whole blocks, and the
+     * shallow height-graded blocks road mods build hills out of.
      *
-     * <p>Defaults to <b>0.6</b>, which is not a bike-specific number: it is vanilla's own player step
-     * height, so a bike goes over anything its rider could have walked over. That is the rule that
-     * needs no explaining in-game. Drop it to 0.5 for "slabs and nothing taller", or to 0 to restore
-     * the original behaviour where every lip is a wall.</p>
+     * <p>Defaults to <b>1.0</b>, a full block, so a rideable goes anywhere a survival world puts a
+     * one-block rise: a hillside, a doorway threshold, the lip of a dirt path. That is the difference
+     * between something you ride on roads someone built for you and something you can actually get
+     * about on. It does mean a bike climbs a step its own rider could not walk up, which is the deal:
+     * you are on a machine, and {@link #stepClimbSpeed} is what the machine charges you for it.</p>
+     *
+     * <p>Drop it to 0.6 for the old "wherever your rider could have walked", to 0.5 for slabs and
+     * nothing taller, or to 0 to make every lip a wall.</p>
      */
-    public static double stepHeight = 0.6D;
+    public static double stepHeight = 1.0D;
+
+    /**
+     * What a <b>step</b> costs, as the speed (blocks/s) that a full one-block lip takes all of.
+     *
+     * <p>The counterweight to {@link #stepHeight}. Charged as kinetic energy, so a taller lip costs
+     * disproportionately more than a shorter one and carrying speed into it helps — see
+     * {@link BikeTuning#stepClimbSpeed} for why one number covers both. At the default, a bicycle at
+     * its 7 blocks/s cruise gives up roughly an eighth of its speed to a slab and about a third to a
+     * whole block. 0 makes steps free, which is how the mod behaved before it could climb them.</p>
+     */
+    public static double stepClimbSpeed = BikeTuning.DEFAULT_STEP_CLIMB_SPEED;
+
+    /**
+     * Fraction of its speed a step-up may never take a rideable below, {@code 0}–{@code 1}. Stops a
+     * lip taller than a rider's momentum being a dead stop; see {@link BikeTuning#stepClimbRetain}.
+     */
+    public static double stepClimbRetain = BikeTuning.DEFAULT_STEP_CLIMB_RETAIN;
 
     /** E-bike assisted top speed, blocks/second. Faster than a pedal bike; still not a rocket. */
     public static double ebikeMaxSpeed = 11.0D;
@@ -262,6 +283,37 @@ public final class LdibConfig {
 
     private static Configuration config;
 
+    /**
+     * Bumped whenever a <b>default changes in a way an existing config file must be moved to rather
+     * than silently keep</b>. Written into the physics category so the next load can tell how old the
+     * file it is reading is.
+     *
+     * <p>This exists because of a real and quiet failure. Forge's {@link Configuration} keeps whatever
+     * value is already in the file — correctly, since it cannot tell a deliberate setting from a stale
+     * one — so raising a default does nothing at all for anyone who has ever run the mod. When
+     * {@link #stepHeight} went from 0.6 to a full block, every existing install kept 0.6 and every
+     * existing install therefore kept a rideable that climbs slabs and stops dead at a block. Nothing
+     * errored; the headline feature simply was not there, and it looked exactly like a bug in the
+     * movement code. A default that only applies to people who have never run the mod is not a
+     * default.</p>
+     *
+     * <p><b>Version 1</b>: {@code stepHeight} 0.6 → 1.0.</p>
+     */
+    private static final int CONFIG_VERSION = 1;
+
+    /** The key holding {@link #CONFIG_VERSION} in a written file. */
+    private static final String KEY_CONFIG_VERSION = "configVersion";
+
+    /**
+     * The {@link #stepHeight} default that shipped before rideables could climb a whole block.
+     *
+     * <p>Migrated only when the file was written before {@link #CONFIG_VERSION} 1 <b>and</b> still
+     * holds exactly this number. Anyone who chose 0.5, 0.8 or 0 kept a value that was never the
+     * default and keeps it; anyone who chooses 0.6 deliberately after upgrading keeps that too, because
+     * the version stamp is written on the way out and the migration never runs twice.</p>
+     */
+    private static final double LEGACY_STEP_HEIGHT = 0.6D;
+
     private LdibConfig() {
         throw new AssertionError("No instances.");
     }
@@ -269,6 +321,25 @@ public final class LdibConfig {
     public static void init(File configFile) {
         config = new Configuration(configFile);
         load();
+    }
+
+    /**
+     * How old the file just loaded is: {@link #CONFIG_VERSION} for one this build wrote or for a file
+     * that does not exist yet, {@code 0} for one written before any of this existed.
+     *
+     * <p><b>Must be called before anything else touches the physics category.</b> Both
+     * {@code addCustomCategoryComment} and {@code get} create a category on demand, so asking this
+     * question later would always find one and always answer "brand new".</p>
+     */
+    private static int loadedConfigVersion() {
+        if (!config.hasCategory(CATEGORY_PHYSICS)) {
+            return CONFIG_VERSION; // no file yet — it is about to be written by this build
+        }
+        net.minecraftforge.common.config.ConfigCategory physics = config.getCategory(CATEGORY_PHYSICS);
+        if (!physics.containsKey(KEY_CONFIG_VERSION)) {
+            return 0; // written before the stamp existed
+        }
+        return physics.get(KEY_CONFIG_VERSION).getInt(0);
     }
 
     // --- Server → client sync ----------------------------------------------------------------
@@ -296,6 +367,7 @@ public final class LdibConfig {
             onewheelMaxSteerRateDegPerSec, onewheelSteerSpeedFalloff,
             onewheelRangeBlocks, onewheelPushMaxSpeed, onewheelPushAcceleration,
             slopeGravity, maxGrade, gradeSmoothing, defaultSurfaceGrip, defaultSurfaceRoll,
+            stepClimbSpeed, stepClimbRetain,
         };
     }
 
@@ -373,6 +445,8 @@ public final class LdibConfig {
         gradeSmoothing = at(v, 37, gradeSmoothing);
         defaultSurfaceGrip = at(v, 38, defaultSurfaceGrip);
         defaultSurfaceRoll = at(v, 39, defaultSurfaceRoll);
+        stepClimbSpeed = at(v, 40, stepClimbSpeed);
+        stepClimbRetain = at(v, 41, stepClimbRetain);
     }
 
     /** {@code v[i]} if the sending server had that value, else {@code fallback} (keep our own). */
@@ -392,7 +466,7 @@ public final class LdibConfig {
     public static BikeTuning bicycleTuning() {
         return new BikeTuning(maxSpeed, pedalAcceleration, brakeDeceleration,
             rollingResistance, airDrag, maxSteerRateDegPerSec, steerSpeedFalloff,
-            reverseMaxSpeed, reverseAcceleration, slopeGravity);
+            reverseMaxSpeed, reverseAcceleration, slopeGravity, stepClimbSpeed, stepClimbRetain);
     }
 
     /**
@@ -404,7 +478,7 @@ public final class LdibConfig {
     public static BikeTuning eBikeTuning() {
         return new BikeTuning(ebikeMaxSpeed, ebikePedalAcceleration, brakeDeceleration,
             rollingResistance, airDrag, maxSteerRateDegPerSec, steerSpeedFalloff,
-            reverseMaxSpeed, reverseAcceleration, slopeGravity);
+            reverseMaxSpeed, reverseAcceleration, slopeGravity, stepClimbSpeed, stepClimbRetain);
     }
 
     /**
@@ -415,7 +489,7 @@ public final class LdibConfig {
     public static BikeTuning scooterTuning() {
         return new BikeTuning(scooterMaxSpeed, scooterAcceleration, scooterBrakeDeceleration,
             rollingResistance, airDrag, scooterMaxSteerRateDegPerSec, scooterSteerSpeedFalloff,
-            reverseMaxSpeed, reverseAcceleration, slopeGravity);
+            reverseMaxSpeed, reverseAcceleration, slopeGravity, stepClimbSpeed, stepClimbRetain);
     }
 
     /**
@@ -426,7 +500,7 @@ public final class LdibConfig {
     public static BikeTuning scooterFastTuning() {
         return new BikeTuning(scooterFastMaxSpeed, scooterFastAcceleration, scooterBrakeDeceleration,
             rollingResistance, airDrag, scooterMaxSteerRateDegPerSec, scooterSteerSpeedFalloff,
-            reverseMaxSpeed, reverseAcceleration, slopeGravity);
+            reverseMaxSpeed, reverseAcceleration, slopeGravity, stepClimbSpeed, stepClimbRetain);
     }
 
     /**
@@ -437,7 +511,7 @@ public final class LdibConfig {
     public static BikeTuning scooterKickTuning() {
         return new BikeTuning(scooterKickMaxSpeed, scooterKickAcceleration, scooterBrakeDeceleration,
             rollingResistance, airDrag, scooterMaxSteerRateDegPerSec, scooterSteerSpeedFalloff,
-            reverseMaxSpeed, reverseAcceleration, slopeGravity);
+            reverseMaxSpeed, reverseAcceleration, slopeGravity, stepClimbSpeed, stepClimbRetain);
     }
 
     /**
@@ -450,7 +524,7 @@ public final class LdibConfig {
     public static BikeTuning onewheelTuning() {
         return new BikeTuning(onewheelMaxSpeed, onewheelAcceleration, onewheelBrakeDeceleration,
             rollingResistance, airDrag, onewheelMaxSteerRateDegPerSec, onewheelSteerSpeedFalloff,
-            reverseMaxSpeed, reverseAcceleration, slopeGravity);
+            reverseMaxSpeed, reverseAcceleration, slopeGravity, stepClimbSpeed, stepClimbRetain);
     }
 
     /**
@@ -466,11 +540,14 @@ public final class LdibConfig {
     public static BikeTuning onewheelPushTuning() {
         return new BikeTuning(onewheelPushMaxSpeed, onewheelPushAcceleration, onewheelBrakeDeceleration,
             rollingResistance, airDrag, onewheelMaxSteerRateDegPerSec, onewheelSteerSpeedFalloff,
-            reverseMaxSpeed, reverseAcceleration, slopeGravity);
+            reverseMaxSpeed, reverseAcceleration, slopeGravity, stepClimbSpeed, stepClimbRetain);
     }
 
     private static void load() {
         config.load();
+
+        // Before anything creates the physics category — see loadedConfigVersion().
+        int fileVersion = loadedConfigVersion();
 
         config.addCustomCategoryComment(CATEGORY_PHYSICS,
             "Bike handling. These values change movement RESULTS, so on a multiplayer server the "
@@ -499,10 +576,39 @@ public final class LdibConfig {
         reverseAcceleration = config.get(CATEGORY_PHYSICS, "reverseAcceleration", reverseAcceleration,
             "Acceleration while backing up, blocks/second^2, shared by every variant.",
             0.1D, 20.0D).getDouble();
-        stepHeight = config.get(CATEGORY_PHYSICS, "stepHeight", stepHeight,
-            "How high a lip (blocks) a rideable rolls straight over: kerbs, slabs and the shallow "
-                + "graded blocks road mods build hills from. 0.6 matches a walking player, so a bike "
-                + "goes wherever its rider could walk. 0.5 = slabs only; 0 = every lip is a wall.",
+        net.minecraftforge.common.config.Property stepHeightProperty =
+            config.get(CATEGORY_PHYSICS, "stepHeight", stepHeight,
+                "How high a lip (blocks) a rideable rolls straight over: kerbs, slabs, whole blocks "
+                    + "and the shallow graded blocks road mods build hills from. 1.0 is a full block, "
+                    + "so a rideable gets about a survival world rather than only a built road — "
+                    + "climbing one costs speed, see stepClimbSpeed. 0.6 = wherever the rider could "
+                    + "have walked; 0.5 = slabs only; 0 = every lip is a wall.",
+                0.0D, 1.0D);
+        // A file written before rideables could climb a block is still carrying the old default, and
+        // keeping it would mean the feature never arrives for anyone who has run the mod before. Moved
+        // once, only from the exact number that used to be the default, and never again — the version
+        // stamp written below is what makes a later deliberate 0.6 stick. See CONFIG_VERSION.
+        if (fileVersion < 1 && stepHeightProperty.getDouble() == LEGACY_STEP_HEIGHT) {
+            stepHeightProperty.set(stepHeight);
+            Ldib.LOGGER.info("Config migration: stepHeight {} -> {}. Rideables now roll over a full "
+                    + "block rather than stopping at one; climbing costs speed (stepClimbSpeed). Set "
+                    + "it back to {} if you preferred the old behaviour.",
+                LEGACY_STEP_HEIGHT, stepHeight, LEGACY_STEP_HEIGHT);
+        }
+        stepHeight = stepHeightProperty.getDouble();
+        stepClimbSpeed = config.get(CATEGORY_PHYSICS, "stepClimbSpeed", stepClimbSpeed,
+            "What climbing a step costs, as the speed (blocks/s) a full one-block lip takes all of. "
+                + "Charged as kinetic energy, so a taller lip costs disproportionately more than a "
+                + "shorter one and carrying speed into it helps. At 5.5 a bicycle at its 7 blocks/s "
+                + "cruise loses about an eighth of its speed to a slab and about a third to a whole "
+                + "block. Raise it to make hills bite harder; 0 makes steps free.",
+            0.0D, 30.0D).getDouble();
+        stepClimbRetain = config.get(CATEGORY_PHYSICS, "stepClimbRetain", stepClimbRetain,
+            "Fraction of its speed a step-up may never take a rideable below (0-1). Without it a lip "
+                + "taller than your momentum stops you dead, which turns a survival hillside into a "
+                + "series of standing starts for the slower variants. This is the knob that decides "
+                + "how a scooter or one-wheel climbs (they never have a whole block's worth of energy "
+                + "to spend); stepClimbSpeed is the one that decides how a bicycle does.",
             0.0D, 1.0D).getDouble();
         physicsSubSteps = config.get(CATEGORY_PHYSICS, "physicsSubSteps", physicsSubSteps,
             "Physics sub-steps per game tick. Higher is smoother steering and costs CPU only.",
@@ -630,6 +736,16 @@ public final class LdibConfig {
             "Per-minute rate for a scooter (either speed). Default $1 / 4 min.", 0.0D, 100000.0D).getDouble();
         shareUseEconomy = config.get(CATEGORY_BIKESHARE, "useEconomy", shareUseEconomy,
             "Bill rentals through an installed economy mod (SUM) when any fee/rate > 0.").getBoolean();
+
+        // Stamp the file so the next load knows how old it is. Written last, and only when it actually
+        // differs, so an unchanged config is not rewritten on every start just to say the same thing.
+        net.minecraftforge.common.config.Property versionProperty =
+            config.get(CATEGORY_PHYSICS, KEY_CONFIG_VERSION, CONFIG_VERSION,
+                "Written by LDIB so it can tell how old this file is and move settings whose defaults "
+                    + "have changed since. Not a tuning knob — leave it alone.");
+        if (versionProperty.getInt(0) != CONFIG_VERSION) {
+            versionProperty.set(CONFIG_VERSION);
+        }
 
         if (config.hasChanged()) {
             config.save();

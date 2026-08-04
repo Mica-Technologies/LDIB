@@ -530,6 +530,21 @@ public class EntityBike extends Entity {
     private static final double MIN_GRADE_RUN = 0.02D;
 
     /**
+     * Rise (blocks) in a single tick below which nothing is treated as a step, however abruptly it
+     * arrived.
+     *
+     * <p>This is the line between "the road is textured" and "there is a kerb here", and it is drawn
+     * where it is because of what road mods actually build with: Fureniku's Roads grades a hill in
+     * <b>sixteenths</b> of a block, so crossing onto the next block of a graded climb snaps the bike up
+     * 0.0625 in one tick — abrupt, but manifestly a road and not a kerb. At any real riding speed the
+     * slope allowance in {@link #applyStepClimbCost()} already absorbs that; this is what keeps it
+     * absorbed for a rider crawling up the same hill, where there is barely any run to allow against.
+     * Set well clear of a sixteenth (and of an eighth, for a mod that grades more coarsely) and well
+     * below the 0.5 of the shallowest thing that <i>is</i> a step.</p>
+     */
+    private static final double MIN_STEP_RISE = 0.15D;
+
+    /**
      * Re-measure the slope from the movement this tick actually produced.
      *
      * <p>Called <b>after</b> the world move and read on the <i>next</i> tick, which costs one tick of
@@ -570,6 +585,69 @@ public class EntityBike extends Entity {
         double limit = Math.max(0.05D, LdibConfig.maxGrade);
         double raw = MathHelper.clamp(dy / run, -limit, limit);
         this.gradeSmoothed += (raw - this.gradeSmoothed) * smoothing;
+    }
+
+    /**
+     * Charge this tick's speed for anything the bike just rolled <b>up over</b> rather than up along —
+     * the kerb, slab or whole block that {@code stepHeight} let {@link #move} lift it across for free.
+     *
+     * <p>This is the other half of raising {@code stepHeight} to a full block. Vanilla's step-up is
+     * silent and instantaneous: the bounding box simply appears on top of the obstacle, at the speed it
+     * arrived. That is fine for a lip you could have walked over and absurd for a metre-high ledge, and
+     * without a price attached, a rideable that clears a block is a rideable that ignores terrain
+     * entirely. {@link BikePhysics#afterStepUp} sets the price; this method's whole job is deciding how
+     * much of the tick's rise the price applies to.</p>
+     *
+     * <p><b>Which is the entire difficulty, because a slope is already paid for.</b> The handling model
+     * bills a grade continuously through {@link Terrain#grade}, and {@link #updateGrade()} measures
+     * that grade from this same rise — so billing the whole rise here would charge a graded road twice,
+     * and the deployment target grades its hills in sixteenths of a block (see {@code MIN_STEP_RISE}).
+     * The split falls straight out of the clamp that {@code updateGrade} already applies: the steepest
+     * slope the model is ever told about is {@link LdibConfig#maxGrade}, so {@code maxGrade · run} is
+     * the most rise a <i>slope</i> can account for over the distance just travelled, and everything
+     * above that line arrived as a step. One constant, two meanings, no double-billing, and no need to
+     * ask a single block how tall it thinks it is — the same terrain-independence that makes
+     * {@code updateGrade} work anywhere.</p>
+     *
+     * <p>Consequences worth knowing rather than rediscovering:</p>
+     * <ul>
+     *   <li>A vanilla staircase is a 1-in-2 grade, steeper than {@code maxGrade}, so part of every stair
+     *       is billed as a step. That is the intended reading — a staircase is not a road, and a bike
+     *       ridden up one should be working for it.</li>
+     *   <li>The faster you are going the more run there is, so the more of a given lip the slope
+     *       allowance absorbs. Carrying speed at a kerb helps twice over: once here, and once in the
+     *       energy sum. Both point the same way, which is the way a real bicycle does.</li>
+     *   <li>Rise is taken over the whole tick, so two lips climbed in one tick are charged as one
+     *       taller one. Energy adds, so that is the same answer, not an approximation of it.</li>
+     * </ul>
+     *
+     * <p>Call from the same place as {@link #updateGrade()} — after the move loop, which is where the
+     * rise is produced, and before {@link #applyServerCorrection()}, which moves the bike vertically
+     * for reasons that have nothing to do with terrain. <b>Only where the handling model is being
+     * run</b>: a spectator's copy owns none of its speed and must not invent a kerb the server never
+     * charged for.</p>
+     */
+    private void applyStepClimbCost() {
+        if (!this.onGround || Math.abs(this.bikeSpeed) <= IDLE_SPEED) {
+            return;
+        }
+        double dy = this.posY - this.prevPosY;
+        if (dy <= MIN_STEP_RISE) {
+            return; // level, descending, or mere road texture — and a drop lifts nothing
+        }
+        double dx = this.posX - this.prevPosX;
+        double dz = this.posZ - this.prevPosZ;
+        double run = Math.sqrt(dx * dx + dz * dz);
+        // Total horizontal distance rather than the signed run updateGrade projects onto the heading:
+        // for a bike the two are the same number (it only ever moves along its heading), and where they
+        // could differ this one is the larger, which errs toward crediting the slope rather than
+        // billing the same rise twice.
+        double stepRise = dy - Math.max(0.05D, LdibConfig.maxGrade) * run;
+        if (stepRise < MIN_STEP_RISE) {
+            return;
+        }
+        this.bikeSpeed = BikePhysics.afterStepUp(this.bikeSpeed, stepRise,
+            assistedTuning().withGrip(this.terrain.gripFactor));
     }
 
     /**
@@ -784,6 +862,14 @@ public class EntityBike extends Entity {
         // cleanly past must not invent a slowdown the server never had.
         if (hitWall && simulate) {
             this.bikeSpeed *= 0.5D;
+        }
+
+        // Bill for any kerb, slab or whole block just climbed. Same window as updateGrade() below, and
+        // for the same two reasons — the rise is produced by the move loop, and the server correction
+        // moves the bike vertically for reasons that are not terrain. Gated on `simulate` like the wall
+        // penalty above: a spectator's copy must not invent a kerb of its own.
+        if (simulate) {
+            applyStepClimbCost();
         }
 
         // Re-measure the slope from the movement that just happened, for the next tick to ride over.

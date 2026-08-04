@@ -132,6 +132,48 @@ public final class BikePhysics {
     }
 
     /**
+     * Speed after rolling <b>up over a lip</b> of {@code rise} blocks — a kerb, a slab, a whole block.
+     *
+     * <p>Deliberately not part of {@link #step}. Everything in there is a rate acting over {@code dt};
+     * a step-up is an <i>event</i>, it happens in whatever fraction of a tick the wheel meets the face,
+     * and folding it into the per-second terms would make the answer depend on how finely the tick was
+     * sub-divided. So the caller detects the event, works out how much of the tick's rise was step
+     * rather than slope, and charges for it once. The slope half is already paid for inside
+     * {@link #step} through {@link Terrain#grade}, and the two must not both bill for the same
+     * centimetre — see {@code EntityBike.applyStepClimbCost}.</p>
+     *
+     * <p>The charge is kinetic energy: {@code v² -= stepClimbSpeed² · rise}. Energy rather than speed
+     * because that is what makes the mechanic behave the way riders expect without a single extra
+     * number — a taller lip costs disproportionately more, and momentum genuinely helps you over one.
+     * See {@link BikeTuning#stepClimbSpeed}. The result is floored at
+     * {@link BikeTuning#stepClimbRetain} of the incoming speed so a lip taller than a rider's momentum
+     * is a heavy price rather than a dead stop.</p>
+     *
+     * <p>Signed like every other speed here: a rideable being walked <i>backwards</i> up a kerb pays
+     * the same price and keeps its direction. The rise is unsigned on purpose — dropping <i>off</i> a
+     * kerb is not this function's business (nothing is lifted), and the caller filters it out.</p>
+     *
+     * @param speed the speed the rideable arrived at the lip with, blocks/s, signed
+     * @param rise  the height climbed, in blocks; {@code <= 0} returns {@code speed} untouched
+     */
+    public static double afterStepUp(double speed, double rise, BikeTuning tuning) {
+        if (rise <= 0.0D || tuning.stepClimbSpeed <= 0.0D) {
+            return speed;
+        }
+        double v = Math.abs(speed);
+        if (v <= MIN_ROLLING_SPEED) {
+            return speed; // already stopped; there is nothing left for the kerb to take
+        }
+        double remaining = v * v - tuning.stepClimbSpeed * tuning.stepClimbSpeed * rise;
+        double after = remaining > 0.0D ? Math.sqrt(remaining) : 0.0D;
+        double floor = v * clamp(tuning.stepClimbRetain, 0.0D, 1.0D);
+        if (after < floor) {
+            after = floor;
+        }
+        return speed < 0.0D ? -after : after;
+    }
+
+    /**
      * Analytic coasting top speed is 0; this returns the powered equilibrium speed where pedal
      * thrust balances drag, i.e. what {@link #step} converges to under full throttle. Handy for
      * tuning and asserted by the test suite.

@@ -73,6 +73,59 @@ public final class BikeTuning {
     public static final double DEFAULT_SLOPE_GRAVITY = 4.5D;
 
     /**
+     * How dearly this machine buys a <b>step</b> — a kerb, a slab, a whole block — as opposed to a
+     * slope. Expressed as the speed (blocks/s) at which a rideable arrives at a full one-block lip
+     * carrying <i>exactly</i> enough momentum for the lip to take all of it.
+     *
+     * <p>A step is not a slope and must not be charged like one. Gravity along a grade
+     * ({@link #slopeGravity}) is a continuous force acting over a continuous climb; hopping a lip is a
+     * discrete event, and {@link BikePhysics#afterStepUp} charges it discretely — as kinetic energy,
+     * {@code v² -= stepClimbSpeed² · rise}, which is what makes the two things this tuning has to get
+     * right fall out of one number rather than a table:</p>
+     * <ul>
+     *   <li><b>Taller costs disproportionately more.</b> Because the cost lands in {@code v²} and the
+     *       speed comes back out through a square root, a rider at 7 blocks/s loses about an eighth of
+     *       their speed to a slab and about a third to a full block — not twice as much, more than
+     *       twice as much. That is the asymmetry the mechanic exists for.</li>
+     *   <li><b>Carrying speed helps.</b> The cost is a fixed number of joules, so it is a small tax on
+     *       a rider with momentum and a wall to one crawling at the lip — which is exactly how kerbs
+     *       work on a real bicycle.</li>
+     * </ul>
+     *
+     * <p>Deliberately larger than the pure {@code √(2·g·h)} a frictionless ramp would ask for: a wheel
+     * striking a vertical face is a collision, and most of what it takes out goes to heat and to
+     * shoving the machine about rather than to lifting it. Set to {@code 0} to make steps free again.</p>
+     *
+     * <p>It belongs to the <i>vehicle</i>, alongside {@link #airDrag}, for a reason that will matter
+     * the moment anyone tunes it: how well a lip is absorbed is mostly wheel diameter. A 26" bicycle
+     * wheel rolls over a kerb a 6" scooter wheel slams into. Every variant shares one value today
+     * because nobody has measured what the difference should be, not because there isn't one.</p>
+     */
+    public final double stepClimbSpeed;
+
+    /**
+     * The fraction of its speed a step-up may never take a rideable below, {@code 0}–{@code 1}.
+     *
+     * <p>Without it the energy sum bottoms out at zero and a lip taller than a rider's momentum stops
+     * them dead — which is realistic, and is a trap: a scooter at its 5.4 blocks/s top speed does not
+     * have a full block's worth of energy to spend, so <i>every</i> block-high step would halt it, and
+     * a survival-world hillside would be a series of standing starts. This floor turns that into a
+     * heavy price instead of a wall. It bites only at the bottom end; at any speed where the energy sum
+     * leaves more than this, it never comes up.</p>
+     *
+     * <p>The default is what makes the slow variants work off-road, and it is worth knowing which knob
+     * to reach for: it is the <i>only</i> thing standing between a scooter and a dead stop at every
+     * block-high rise, so it decides how a scooter and a one-wheel climb, while
+     * {@link #stepClimbSpeed} decides how a bicycle and an e-bike do. They barely interact — at
+     * bicycle speeds the energy sum is above this floor and the floor is never consulted at all.</p>
+     */
+    public final double stepClimbRetain;
+
+    /** Step-climb values for a tuning built without them — see {@link #stepClimbSpeed}. */
+    public static final double DEFAULT_STEP_CLIMB_SPEED = 5.5D;
+    public static final double DEFAULT_STEP_CLIMB_RETAIN = 0.40D;
+
+    /**
      * A tuning with the default slope gravity. Kept so the nine numbers that predate hills still
      * construct a valid tuning — every existing caller and test uses this form.
      */
@@ -90,6 +143,10 @@ public final class BikeTuning {
             DEFAULT_SLOPE_GRAVITY);
     }
 
+    /**
+     * A tuning with the default step-climb cost. Kept for the same reason as the nine-argument form:
+     * the ten numbers that predate kerbs still describe a valid machine.
+     */
     public BikeTuning(double maxSpeed,
                       double pedalAcceleration,
                       double brakeDeceleration,
@@ -100,6 +157,23 @@ public final class BikeTuning {
                       double maxReverseSpeed,
                       double reverseAcceleration,
                       double slopeGravity) {
+        this(maxSpeed, pedalAcceleration, brakeDeceleration, rollingResistance, airDrag,
+            maxSteerRateDegPerSec, steerSpeedFalloff, maxReverseSpeed, reverseAcceleration,
+            slopeGravity, DEFAULT_STEP_CLIMB_SPEED, DEFAULT_STEP_CLIMB_RETAIN);
+    }
+
+    public BikeTuning(double maxSpeed,
+                      double pedalAcceleration,
+                      double brakeDeceleration,
+                      double rollingResistance,
+                      double airDrag,
+                      double maxSteerRateDegPerSec,
+                      double steerSpeedFalloff,
+                      double maxReverseSpeed,
+                      double reverseAcceleration,
+                      double slopeGravity,
+                      double stepClimbSpeed,
+                      double stepClimbRetain) {
         this.maxSpeed = maxSpeed;
         this.pedalAcceleration = pedalAcceleration;
         this.brakeDeceleration = brakeDeceleration;
@@ -110,6 +184,8 @@ public final class BikeTuning {
         this.maxReverseSpeed = maxReverseSpeed;
         this.reverseAcceleration = reverseAcceleration;
         this.slopeGravity = slopeGravity;
+        this.stepClimbSpeed = stepClimbSpeed;
+        this.stepClimbRetain = stepClimbRetain;
     }
 
     /**
@@ -141,7 +217,9 @@ public final class BikeTuning {
             this.steerSpeedFalloff,
             this.maxReverseSpeed,
             this.reverseAcceleration,
-            this.slopeGravity);
+            this.slopeGravity,
+            this.stepClimbSpeed,
+            this.stepClimbRetain);
     }
 
     /** Least and most traction a surface may claim, so a mistyped config cannot break the handling. */
@@ -178,7 +256,9 @@ public final class BikeTuning {
             this.steerSpeedFalloff,
             this.maxReverseSpeed,
             this.reverseAcceleration,
-            this.slopeGravity);
+            this.slopeGravity,
+            this.stepClimbSpeed,
+            this.stepClimbRetain);
     }
 
     /**
