@@ -303,7 +303,8 @@ class BikePhysicsTest {
         for (int i = 0; i < 40; i++) { // 2 s of full pedal through water
             s = BikePhysics.step(s, 1.0D, 0.0D, TUNING.withGrip(Terrain.WADING.gripFactor), Terrain.WADING, DT);
         }
-        assertTrue(s.speed < 0.5D, "water should hold a pedalling bike to a wade, was " + s.speed);
+        assertTrue(s.speed < 2.0D, "water should hold a pedalling bike to a crawl, was " + s.speed);
+        assertTrue(s.speed > 0.5D, "but not to a standstill: most water is a puddle, was " + s.speed);
     }
 
     @Test

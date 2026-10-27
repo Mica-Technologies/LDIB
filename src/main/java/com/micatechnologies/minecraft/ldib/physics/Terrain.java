@@ -24,11 +24,14 @@ public final class Terrain {
 
     /**
      * Wheels in water. The drag on a tyre pushing through water swamps everything else, so the roll
-     * factor is large enough that full pedal manages a slow wade rather than a ride, and the grip is
-     * poor — a submerged tyre on a riverbed neither brakes nor steers well. A rideable that coasts
-     * into a lake stops within a couple of blocks instead of crossing it.
+     * factor is large enough that full pedal manages a crawl well under walking pace rather than a
+     * ride, and the grip is poor — a submerged tyre on a riverbed neither brakes nor steers well. A
+     * rideable that coasts into a lake stops within a few blocks instead of crossing it.
+     *
+     * <p>Not harsher than this, though: most water a road bike meets is a puddle across the road, and
+     * the first cut (roll ×8, grip 0.3) held a pedalling bicycle to 0.2 b/s there — a standstill.</p>
      */
-    public static final Terrain WADING = new Terrain(0.0D, 0.3D, 8.0D);
+    public static final Terrain WADING = new Terrain(0.0D, 0.6D, 3.0D);
 
     /**
      * Slope along the direction the rideable is <b>pointing</b>, as rise over run. Positive is
