@@ -105,11 +105,12 @@ class BikeShareApiTest {
 
     @Test
     void amountsFormatAsWholeItemsOrDecimals() {
-        BikeShareSnapshot items = new BikeShareSnapshot(0L, 0, ShareTariff.FREE, "emeralds",
-            Collections.emptyList(), RiderStatus.NONE);
-        BikeShareSnapshot money = new BikeShareSnapshot(0L, 0, ShareTariff.FREE, "",
-            Collections.emptyList(), RiderStatus.NONE);
+        BikeShareSnapshot items = new BikeShareSnapshot(0L, 0, ShareTariff.FREE.withCurrency("emerald", true),
+            "emeralds", Collections.emptyList(), RiderStatus.NONE);
+        BikeShareSnapshot money = new BikeShareSnapshot(0L, 0, ShareTariff.FREE.withCurrency("$", false),
+            "$", Collections.emptyList(), RiderStatus.NONE);
         assertEquals("3 emeralds", BikeShareApi.formatAmount(items, 3.0D));
-        assertEquals("2.50", BikeShareApi.formatAmount(money, 2.5D));
+        assertEquals("1 emerald", BikeShareApi.formatAmount(items, 1.0D));
+        assertEquals("$2.50", BikeShareApi.formatAmount(money, 2.5D));
     }
 }

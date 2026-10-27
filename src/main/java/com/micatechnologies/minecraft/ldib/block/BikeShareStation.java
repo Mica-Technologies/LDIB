@@ -170,15 +170,15 @@ public final class BikeShareStation {
         ShareTariff tariff = BikeShareBilling.activeTariff();
         if (!BikeShareBilling.active().canCheckOut(player)) {
             status(player, String.format(
-                "You can't start a rental right now — you need at least %.2f to cover the unlock fee.",
-                tariff.unlockFee));
+                "You can't start a rental right now — you need at least %s to cover the unlock fee.",
+                tariff.formatPrice(tariff.unlockFee)));
             return;
         }
         network.startSession(player.getUniqueID(), kiosk, world.getTotalWorldTime());
         if (tariff.isPaid()) {
             status(player, String.format(
-                "Checked out (unlock fee %.2f) — take a bike or scooter from any dock at this station.",
-                tariff.unlockFee));
+                "Checked out (unlock fee %s) — take a bike or scooter from any dock at this station.",
+                tariff.formatPrice(tariff.unlockFee)));
         } else {
             status(player, "Checked out — take a bike or scooter from any dock at this station.");
         }
@@ -231,11 +231,12 @@ public final class BikeShareStation {
         int minutes = (int) Math.max(1L, (elapsed + 1199L) / 1200L);
         // The variant isn't recorded on the session, so bill at the pedal-bike rate — the cheapest,
         // which is the right way to round a charge the system cannot fully evidence.
-        double charged = BikeShareBilling.active()
-            .charge(player, com.micatechnologies.minecraft.ldib.entity.BikeVariant.BICYCLE, minutes);
+        BikeShareBilling billing = BikeShareBilling.active();
+        double charged = billing.charge(player, com.micatechnologies.minecraft.ldib.entity.BikeVariant.BICYCLE, minutes);
+        network.recordRide(player.getUniqueID(), charged, 0.0D, session.kiosk, null, world.getTotalWorldTime());
         String message = "Rental ended after " + minutes + (minutes == 1 ? " minute." : " minutes.");
         if (charged > 0.0D) {
-            message += String.format(" You were charged %.2f.", charged);
+            message += " You were charged " + billing.tariff().format(charged) + ".";
         }
         message += " Your bike is still out there — it's fleet property and anyone can dock it.";
         player.sendMessage(new TextComponentString(message));

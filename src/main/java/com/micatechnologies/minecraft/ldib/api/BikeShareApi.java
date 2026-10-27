@@ -103,13 +103,10 @@ public final class BikeShareApi {
 
     /**
      * An amount in the snapshot's currency, for display: "3 emeralds" for an item currency (whole
-     * numbers), "2.50" for an economy's own currency.
+     * numbers), "$2.50" for SUM's money. See also {@link ShareTariff#formatPrice} and
+     * {@link ShareTariff#formatRate} on {@code snapshot.tariff}.
      */
     public static String formatAmount(BikeShareSnapshot snapshot, double amount) {
-        if (snapshot == null || snapshot.currency.isEmpty()) {
-            return String.format("%.2f", amount);
-        }
-        long whole = Math.round(amount);
-        return whole + " " + snapshot.currency;
+        return snapshot == null ? String.format("%.2f", amount) : snapshot.tariff.format(amount);
     }
 }

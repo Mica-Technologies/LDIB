@@ -103,6 +103,54 @@ class ShareTariffTest {
         assertEquals(0.0D, REBALANCING.rebalanceCredit(1.0D, 0.0D, 0.0D), EPS, "a free ride earns nothing");
     }
 
+    // --- Item currency -----------------------------------------------------------------------
+
+    private static final ShareTariff EMERALDS = REBALANCING.withCurrency("emerald", true);
+
+    @Test
+    void itemPricesRoundUpSoAFractionIsNeverFree() {
+        assertEquals(0, ShareTariff.itemsOwed(0.0D));
+        assertEquals(1, ShareTariff.itemsOwed(0.2D));
+        assertEquals(1, ShareTariff.itemsOwed(1.0D));
+        assertEquals(1, ShareTariff.itemsOwed(1.0D + 1.0e-12D), "float noise must not cost a whole extra item");
+        assertEquals(3, ShareTariff.itemsOwed(2.01D));
+        // A 10-minute bicycle ride at the defaults: 1 unlock + 10 x 0.20 = 3.0 emeralds.
+        assertEquals(3, ShareTariff.itemsOwed(EMERALDS.totalFor(BikeVariant.BICYCLE, 10)));
+    }
+
+    @Test
+    void itemAmountsAndRatesReadNaturally() {
+        assertEquals("1 emerald", EMERALDS.format(1));
+        assertEquals("3 emeralds", EMERALDS.format(3));
+        assertEquals("2 emeralds", EMERALDS.formatPrice(1.2D), "prices show what will be charged");
+        assertEquals("1 emerald / 5 min", EMERALDS.formatRate(0.20D));
+        assertEquals("2 emeralds/min", EMERALDS.formatRate(2.0D));
+        ShareTariff dollars = REBALANCING.withCurrency("$", false);
+        assertEquals("$0.20/min", dollars.formatRate(0.20D));
+        assertEquals("$1.00", dollars.formatPrice(1.0D));
+    }
+
+    @Test
+    void itemCreditIsWholeAndStillCappedAtTheFare() {
+        // One end at 0.5 per end rounds to a whole emerald; both ends (1.0) is still one.
+        assertEquals(1.0D, EMERALDS.rebalanceCredit(1.0D, 0.5D, 3.0D), EPS);
+        assertEquals(1.0D, EMERALDS.rebalanceCredit(1.0D, 0.0D, 3.0D), EPS);
+        // Never more whole items back than were taken, even if a big per-end credit is configured.
+        ShareTariff generous = new ShareTariff(1.0D, 0.2D, 0.3D, 0.25D, 5.0D, 0.75D, 0.25D, "emerald", true);
+        assertEquals(2.0D, generous.rebalanceCredit(1.0D, 0.0D, 2.0D), EPS);
+        assertEquals(0.0D, EMERALDS.rebalanceCredit(1.0D, 0.0D, 0.0D), EPS, "nothing taken, nothing back");
+    }
+
+    @Test
+    void currencySurvivesTheWire() {
+        io.netty.buffer.ByteBuf buf = io.netty.buffer.Unpooled.buffer();
+        EMERALDS.toBytes(buf);
+        ShareTariff copy = ShareTariff.fromBytes(buf);
+        assertEquals("emerald", copy.currency);
+        assertTrue(copy.wholeItems);
+        assertEquals(0, buf.readableBytes(), "reader left bytes behind");
+    }
+
     @Test
     void unmeasuredStationsAndTariffsWithoutRebalancingEarnNothing() {
         assertEquals(0.0D, REBALANCING.rebalanceCredit(-1.0D, -1.0D, 5.0D), EPS, "standalone docks");

@@ -3,10 +3,13 @@ package com.micatechnologies.minecraft.ldib.api;
 import com.micatechnologies.minecraft.ldib.LdibConfig;
 import com.micatechnologies.minecraft.ldib.entity.BikeVariant;
 import io.netty.buffer.ByteBuf;
+import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 
 /**
  * A bike-share price list: a flat unlock fee plus a per-minute rate that varies by variant (pedal bike,
- * e-bike, and scooter are priced apart). Amounts are in the installed economy's currency.
+ * e-bike, and scooter are priced apart). Amounts are in {@link #currency}: SUM's money, or whole items
+ * of the configured currency item when SUM is not in use (see {@link BikeShareBilling}).
  *
  * <p>Rates live in server config; this immutable value object is built server-side ({@link #fromConfig()})
  * and shipped to the kiosk screen over the wire ({@link #toBytes}/{@link #fromBytes}) so the client can
@@ -32,6 +35,17 @@ public final class ShareTariff {
     /** Station fill at or below which returning a bike there earns credit. */
     public final double starvedFill;
 
+    /**
+     * What amounts are counted in: a money symbol ({@code "$"}) when {@link #wholeItems} is false, an
+     * item's singular name ({@code "emerald"}) when it is true, or empty for none.
+     */
+    public final String currency;
+    /**
+     * Whether amounts are counted in whole items. Prices are then charged rounded <b>up</b> to a whole
+     * item, and credit rounded to the nearest one (still never more than was charged).
+     */
+    public final boolean wholeItems;
+
     /** A price list with no rebalancing credit. */
     public ShareTariff(double unlockFee, double bikePerMinute, double ebikePerMinute, double scooterPerMinute) {
         this(unlockFee, bikePerMinute, ebikePerMinute, scooterPerMinute, 0.0D, 1.0D, 0.0D);
@@ -39,6 +53,13 @@ public final class ShareTariff {
 
     public ShareTariff(double unlockFee, double bikePerMinute, double ebikePerMinute, double scooterPerMinute,
                        double rebalanceCreditPerEnd, double busyFill, double starvedFill) {
+        this(unlockFee, bikePerMinute, ebikePerMinute, scooterPerMinute, rebalanceCreditPerEnd, busyFill,
+            starvedFill, "", false);
+    }
+
+    public ShareTariff(double unlockFee, double bikePerMinute, double ebikePerMinute, double scooterPerMinute,
+                       double rebalanceCreditPerEnd, double busyFill, double starvedFill,
+                       String currency, boolean wholeItems) {
         this.unlockFee = unlockFee;
         this.bikePerMinute = bikePerMinute;
         this.ebikePerMinute = ebikePerMinute;
@@ -46,6 +67,61 @@ public final class ShareTariff {
         this.rebalanceCreditPerEnd = rebalanceCreditPerEnd;
         this.busyFill = busyFill;
         this.starvedFill = starvedFill;
+        this.currency = currency == null ? "" : currency;
+        this.wholeItems = wholeItems;
+    }
+
+    /** This price list counted in {@code currency}; see {@link #currency} and {@link #wholeItems}. */
+    public ShareTariff withCurrency(String currency, boolean wholeItems) {
+        return new ShareTariff(unlockFee, bikePerMinute, ebikePerMinute, scooterPerMinute,
+            rebalanceCreditPerEnd, busyFill, starvedFill, currency, wholeItems);
+    }
+
+    // --- Currency -----------------------------------------------------------------------------
+
+    /** Whole items a price of {@code amount} costs: rounded up, so a fractional rate is never free. */
+    public static int itemsOwed(double amount) {
+        if (amount <= 0.0D) {
+            return 0;
+        }
+        // The epsilon keeps 1.0000000001 (accumulated rate arithmetic) from becoming 2.
+        return (int) Math.ceil(amount - 1.0e-9D);
+    }
+
+    /** {@code amount} for display: "3 emeralds", "1 emerald", "$2.50", or "2.50" with no currency. */
+    public String format(double amount) {
+        if (wholeItems) {
+            long n = Math.round(amount);
+            return n + " " + (n == 1 ? currency : plural(currency));
+        }
+        return currency + String.format(Locale.ROOT, "%.2f", amount);
+    }
+
+    /** A price for display: as {@link #format}, but rounded up to whole items the way it is charged. */
+    public String formatPrice(double amount) {
+        return wholeItems ? format(itemsOwed(amount)) : format(amount);
+    }
+
+    /**
+     * A per-minute rate for display. Money reads "$0.20/min". Items cannot be split, so a rate under
+     * one item a minute reads as how long one item lasts — "1 emerald / 5 min" — rather than rounding
+     * up to a misleading "1 emerald/min"; the fare itself is still charged rounded up at the end.
+     */
+    public String formatRate(double perMinute) {
+        if (!wholeItems || perMinute <= 0.0D || perMinute >= 1.0D) {
+            return format(perMinute) + "/min";
+        }
+        long minutesPerItem = Math.max(1L, Math.round(1.0D / perMinute));
+        return format(1) + " / " + minutesPerItem + " min";
+    }
+
+    /** The currency's plural name ("emeralds"); the symbol itself for money. */
+    public String pluralCurrency() {
+        return wholeItems ? plural(currency) : currency;
+    }
+
+    private static String plural(String noun) {
+        return noun.isEmpty() || noun.endsWith("s") ? noun : noun + "s";
     }
 
     /** The current price list from server config (whether it's actually billed is up to the billing seam). */
@@ -94,7 +170,10 @@ public final class ShareTariff {
      */
     public double rebalanceCredit(double pickupFill, double dropoffFill, double charged) {
         int ends = (isBusy(pickupFill) ? 1 : 0) + (isStarved(dropoffFill) ? 1 : 0);
-        return Math.max(0.0D, Math.min(ends * rebalanceCreditPerEnd, charged));
+        double credit = Math.max(0.0D, Math.min(ends * rebalanceCreditPerEnd, charged));
+        // In whole items, to the nearest one — a half-item credit per end still pays — and never more
+        // than the whole items that were charged.
+        return wholeItems ? Math.min(Math.round(credit), Math.floor(charged)) : credit;
     }
 
     /** The per-minute rate for {@code variant}. Both scooter speeds share one rate. */
@@ -138,10 +217,28 @@ public final class ShareTariff {
         buf.writeDouble(rebalanceCreditPerEnd);
         buf.writeDouble(busyFill);
         buf.writeDouble(starvedFill);
+        byte[] name = currency.getBytes(StandardCharsets.UTF_8);
+        int length = Math.min(name.length, MAX_CURRENCY_BYTES);
+        buf.writeByte(length);
+        buf.writeBytes(name, 0, length);
+        buf.writeBoolean(wholeItems);
     }
 
     public static ShareTariff fromBytes(ByteBuf buf) {
-        return new ShareTariff(buf.readDouble(), buf.readDouble(), buf.readDouble(), buf.readDouble(),
-            buf.readDouble(), buf.readDouble(), buf.readDouble());
+        double unlock = buf.readDouble();
+        double bike = buf.readDouble();
+        double ebike = buf.readDouble();
+        double scooter = buf.readDouble();
+        double credit = buf.readDouble();
+        double busy = buf.readDouble();
+        double starved = buf.readDouble();
+        byte[] name = new byte[buf.readUnsignedByte()];
+        buf.readBytes(name);
+        boolean wholeItems = buf.readBoolean();
+        return new ShareTariff(unlock, bike, ebike, scooter, credit, busy, starved,
+            new String(name, StandardCharsets.UTF_8), wholeItems);
     }
+
+    /** Longest currency name sent, in UTF-8 bytes; it is a length byte on the wire. */
+    private static final int MAX_CURRENCY_BYTES = 255;
 }

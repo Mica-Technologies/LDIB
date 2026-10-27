@@ -116,10 +116,11 @@ public class GuiKiosk extends GuiScreen {
 
         if (tariff.isPaid()) {
             drawCenteredString(this.fontRenderer,
-                String.format("Unlock %.2f  •  Bike %.2f/min", tariff.unlockFee, tariff.bikePerMinute()),
+                "Unlock " + tariff.formatPrice(tariff.unlockFee) + "  •  Bike " + tariff.formatRate(tariff.bikePerMinute()),
                 cx, cy - 16, 0xFFD37F);
             drawCenteredString(this.fontRenderer,
-                String.format("E-bike %.2f/min  •  Scooter %.2f/min", tariff.ebikePerMinute(), tariff.scooterPerMinute()),
+                "E-bike " + tariff.formatRate(tariff.ebikePerMinute())
+                    + "  •  Scooter " + tariff.formatRate(tariff.scooterPerMinute()),
                 cx, cy - 5, 0xFFD37F);
         } else {
             drawCenteredString(this.fontRenderer, "Free to ride — no charge.", cx, cy - 10, 0x9CE6A0);

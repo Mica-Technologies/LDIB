@@ -136,4 +136,15 @@ public class Ldib {
     public void serverStarting(net.minecraftforge.fml.common.event.FMLServerStartingEvent event) {
         event.registerServerCommand(new com.micatechnologies.minecraft.ldib.command.CommandLdib());
     }
+
+    /** SUM attaches its economy while the server starts, so LDIB asks for a handle only once it has. */
+    @EventHandler
+    public void serverStarted(net.minecraftforge.fml.common.event.FMLServerStartedEvent event) {
+        com.micatechnologies.minecraft.ldib.integration.SumEconomy.acquire();
+    }
+
+    @EventHandler
+    public void serverStopping(net.minecraftforge.fml.common.event.FMLServerStoppingEvent event) {
+        com.micatechnologies.minecraft.ldib.integration.SumEconomy.release();
+    }
 }

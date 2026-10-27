@@ -43,6 +43,15 @@ public final class LdibConfig {
     public static boolean shareUseEconomy = true;
 
     /**
+     * What rides are paid in: {@code auto} (SUM when it allows LDIB, otherwise items), {@code sum}
+     * (SUM only; free while it is unusable), {@code items}, or {@code free}.
+     */
+    public static String shareCurrency = "auto";
+
+    /** The item rides are paid in when not using SUM, by registry name. */
+    public static String shareCurrencyItem = "minecraft:emerald";
+
+    /**
      * Credit for each rebalancing end of a ride — taking a bike from a busy station, returning one to a
      * starved one — in the economy's currency. 0 turns rebalancing off. Never pays out more than the
      * ride cost (see {@code ShareTariff#rebalanceCredit}), so the default of half the unlock fee makes a
@@ -783,7 +792,16 @@ public final class LdibConfig {
         shareRateScooterPerMinute = config.get(CATEGORY_BIKESHARE, "rateScooterPerMinute", shareRateScooterPerMinute,
             "Per-minute rate for a scooter (either speed). Default $1 / 4 min.", 0.0D, 100000.0D).getDouble();
         shareUseEconomy = config.get(CATEGORY_BIKESHARE, "useEconomy", shareUseEconomy,
-            "Bill rentals through an installed economy mod (SUM) when any fee/rate > 0.").getBoolean();
+            "Bill rentals at all when any fee/rate > 0. false makes every ride free whatever 'currency' "
+                + "says (the older off switch, kept so existing configs mean what they did).").getBoolean();
+        shareCurrency = config.get(CATEGORY_BIKESHARE, "currency", shareCurrency,
+            "What rides are paid in. auto: SUM's money when SUM is installed and allows LDIB (add "
+                + "'ldib=wallet_write' to SUM's economy_integration.allowedMods), otherwise currencyItem. "
+                + "sum: SUM only, free while SUM is unusable. items: always currencyItem. free: nothing.",
+            new String[] {"auto", "sum", "items", "free"}).getString();
+        shareCurrencyItem = config.get(CATEGORY_BIKESHARE, "currencyItem", shareCurrencyItem,
+            "The item rides are paid in when not using SUM (registry name). Prices are charged rounded "
+                + "up to whole items.").getString();
         shareRebalanceCredit = config.get(CATEGORY_BIKESHARE, "rebalanceCredit", shareRebalanceCredit,
             "Credit for each rebalancing end of a ride: taking a bike from a busy station, and returning "
                 + "one to a starved station. Paid back from the fare, never more than the ride cost, "

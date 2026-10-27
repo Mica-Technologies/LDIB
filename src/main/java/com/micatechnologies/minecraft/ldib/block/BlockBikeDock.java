@@ -7,7 +7,6 @@ import com.micatechnologies.minecraft.ldib.api.ShareTariff;
 import com.micatechnologies.minecraft.ldib.entity.BikeVariant;
 import com.micatechnologies.minecraft.ldib.entity.EntityBike;
 import com.micatechnologies.minecraft.ldib.entity.RideablePlacement;
-import com.micatechnologies.minecraft.ldib.integration.SumEconomy;
 import com.micatechnologies.minecraft.ldib.item.ItemBike;
 import com.micatechnologies.minecraft.ldib.item.LdibItems;
 import net.minecraft.block.Block;
@@ -228,12 +227,12 @@ public class BlockBikeDock extends Block {
             // No session: station docks send you to the kiosk; standalone docks self-serve (below).
             status(player, "Check out at the station kiosk first.");
             return true;
-        } else if (!com.micatechnologies.minecraft.ldib.api.BikeShareBilling.active().canCheckOut(player)) {
+        } else if (!BikeShareBilling.active().canCheckOut(player)) {
             // Self-serve at a standalone dock still opens a real (billable) rental, so it has to pass
             // the same affordability gate the kiosk applies.
-            status(player, String.format(
-                "You can't take a bike right now — you need at least %.2f to cover the unlock fee.",
-                com.micatechnologies.minecraft.ldib.api.BikeShareBilling.activeTariff().unlockFee));
+            ShareTariff tariff = BikeShareBilling.activeTariff();
+            status(player, "You can't take a bike right now — you need at least "
+                + tariff.formatPrice(tariff.unlockFee) + " to cover the unlock fee.");
             return true;
         }
 
@@ -300,11 +299,12 @@ public class BlockBikeDock extends Block {
         long elapsed = Math.max(0L, world.getTotalWorldTime() - clockStart);
         int minutes = (int) Math.max(1L, (elapsed + 1199L) / 1200L); // ceil to whole minutes, min 1
         BikeShareBilling billing = BikeShareBilling.active();
+        ShareTariff tariff = billing.tariff();
         double charged = billing.charge(player, variant, minutes);
         String message = "Your bike-share session is complete — " + minutes
             + (minutes == 1 ? " minute." : " minutes.");
         if (charged > 0.0D) {
-            message += String.format(" You were charged %.2f.", charged);
+            message += " You were charged " + tariff.format(charged) + ".";
         }
 
         // Rebalancing credit, paid back out of what was just charged. Only when rides are actually
@@ -312,12 +312,14 @@ public class BlockBikeDock extends Block {
         BlockPos nearKiosk = BikeShareStation.findKioskNear(world, dockPos);
         BlockPos returnKiosk = nearKiosk != null ? BikeShareStation.master(world, nearKiosk) : null;
         double paidBack = 0.0D;
-        if (billing == BikeShareBilling.ECONOMY && charged > 0.0D) {
+        if (charged > 0.0D) {
             double dropoffFill = returnKiosk != null ? stationFill(world, returnKiosk, 1) : -1.0D;
-            double credit = BikeShareBilling.activeTariff().rebalanceCredit(session.pickupFill, dropoffFill, charged);
-            if (credit > 0.0D && SumEconomy.adjustBalance(player, credit)) {
-                message += String.format(" Thanks for rebalancing the fleet — %.2f back.", credit);
-                paidBack = credit;
+            double credit = tariff.rebalanceCredit(session.pickupFill, dropoffFill, charged);
+            if (credit > 0.0D) {
+                paidBack = billing.credit(player, credit, "LDIB bike-share rebalancing credit");
+                if (paidBack > 0.0D) {
+                    message += " Thanks for rebalancing the fleet — " + tariff.format(paidBack) + " back.";
+                }
             }
         }
         network.recordRide(player.getUniqueID(), charged, paidBack, session.kiosk, returnKiosk,
