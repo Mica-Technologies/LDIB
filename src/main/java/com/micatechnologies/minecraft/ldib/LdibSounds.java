@@ -17,6 +17,8 @@ public final class LdibSounds {
 
     public static SoundEvent RIDE;
     public static SoundEvent BRAKE;
+    /** The handlebar bell. Played by the server ({@code PacketRingBell}) so everyone nearby hears it. */
+    public static SoundEvent BELL;
 
     private LdibSounds() {
         throw new AssertionError("No instances.");
@@ -25,8 +27,10 @@ public final class LdibSounds {
     public static void register(IForgeRegistry<SoundEvent> registry) {
         RIDE = create("ride");
         BRAKE = create("brake");
+        BELL = create("bell");
         registry.register(RIDE);
         registry.register(BRAKE);
+        registry.register(BELL);
     }
 
     private static SoundEvent create(String name) {

@@ -74,15 +74,15 @@ com.micatechnologies.minecraft.ldib
 │   └── RiderPose                  # seated (bike) / standing (scooter) / across the board (one-wheel)
 ├── item/                          # ItemBike, LdibItems — places the bike, boat-style
 ├── block/                         # racks, docks, kiosks + the bike-share network (WorldSavedData)
-├── network/                       # LdibNetwork + packets (kiosk GUI, grab, config sync)
+├── network/                       # LdibNetwork + packets (kiosk GUI, grab, bell, config sync)
 ├── api/                           # BikeShareBilling, ShareTariff — the economy seam
 ├── integration/                   # SumEconomy — optional soft dep, reflection only, no compile dep
 └── client/                        # client-ONLY, reached via LdibClientProxy
     ├── render/                    # RenderBike, ModelRideable + per-variant models, rack/dock TESRs
     ├── hud/                       # ride readout (speed + battery), grab prompt
     ├── gui/                       # kiosk screen
-    ├── sound/                     # looping ride sound, brake scuff
-    └── RiderCamera, RiderPoseHandler, LdibKeyHandler, ClientConfigSync
+    ├── sound/                     # ride sound for every bike in earshot, brake scuff
+    └── RiderCamera, RiderFov, RiderPoseHandler, LdibKeyHandler, ClientConfigSync
 ```
 
 **The load-bearing constraint:** `physics` contains no Minecraft types. That keeps the parts most

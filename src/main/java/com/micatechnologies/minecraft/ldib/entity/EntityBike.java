@@ -311,6 +311,31 @@ public class EntityBike extends Entity {
         return this.dataManager.get(BRAKING);
     }
 
+    /** Shortest gap, in ticks, between two rings of one bike's bell — a double ding, not a drone. */
+    private static final long BELL_COOLDOWN_TICKS = 6L;
+
+    /** World time this bike's bell last rang; server-side only, never saved. */
+    private long lastBellTick = Long.MIN_VALUE / 2;
+
+    /**
+     * Ring the bell, for everyone in earshot. Server-side: the sound is played with no excluded player,
+     * so the rider hears the same ring as everyone else. Rate-limited per bike, so holding or
+     * hammering the key cannot turn it into a noise weapon on a server.
+     */
+    public void ringBell() {
+        if (this.world.isRemote) {
+            return;
+        }
+        long now = this.world.getTotalWorldTime();
+        if (now - this.lastBellTick < BELL_COOLDOWN_TICKS) {
+            return;
+        }
+        this.lastBellTick = now;
+        // A touch of pitch spread so a street full of bells is not one bell.
+        this.world.playSound(null, this.posX, this.posY, this.posZ, com.micatechnologies.minecraft.ldib.LdibSounds.BELL,
+            net.minecraft.util.SoundCategory.PLAYERS, 1.0F, 0.95F + this.rand.nextFloat() * 0.1F);
+    }
+
     // --- Riding contract ---------------------------------------------------------------------
 
     @Override

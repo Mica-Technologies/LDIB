@@ -281,6 +281,13 @@ public final class LdibConfig {
      */
     public static double viewRecenterStrength = 0.05D;
 
+    /**
+     * How much wider the rider's field of view opens at speed, as a fraction of their normal FOV at
+     * {@code client/RiderFov}'s reference speed ({@code 0} = off). Presentation only and never synced:
+     * it is the rider's main sense of speed besides the lean, and like the lean it is a matter of taste.
+     */
+    public static double speedFovStrength = 0.10D;
+
     private static Configuration config;
 
     /**
@@ -720,6 +727,9 @@ public final class LdibConfig {
                 + "around freely at any speed; 1 = snaps forward as soon as you stop turning). "
                 + "0.05 is about one second to settle. You can always look around freely while "
                 + "stopped, whatever this is set to.", 0.0D, 1.0D).getDouble();
+        speedFovStrength = config.get(CATEGORY_CLIENT, "speedFovStrength", speedFovStrength,
+            "How much wider your field of view opens at speed while riding (0 = off, 0.1 = 10% "
+                + "wider at 10 blocks/second, about a fast scooter's top speed).", 0.0D, 0.5D).getDouble();
 
         config.addCustomCategoryComment(CATEGORY_BIKESHARE,
             "Bike-share stations. A kiosk plus the docks within its radius form a station; rentals can "

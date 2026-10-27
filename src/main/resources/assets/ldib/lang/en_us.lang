@@ -18,3 +18,7 @@ tile.ldib.bike_kiosk.name=Bike Share Kiosk
 
 key.categories.ldib=Immersive Biking
 key.ldib.grab_dock=Grab / Dock Bike
+key.ldib.bell=Ring Bell
+subtitles.ldib.ride=Bike rolls
+subtitles.ldib.brake=Bike brakes
+subtitles.ldib.bell=Bike bell rings

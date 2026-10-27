@@ -1,14 +1,23 @@
 {
   "ride": {
     "category": "neutral",
+    "subtitle": "subtitles.ldib.ride",
     "sounds": [
       { "name": "ldib:bike_ride", "stream": false }
     ]
   },
   "brake": {
     "category": "neutral",
+    "subtitle": "subtitles.ldib.brake",
     "sounds": [
       { "name": "ldib:bike_brake" }
+    ]
+  },
+  "bell": {
+    "category": "players",
+    "subtitle": "subtitles.ldib.bell",
+    "sounds": [
+      { "name": "ldib:bike_bell" }
     ]
   }
 }
