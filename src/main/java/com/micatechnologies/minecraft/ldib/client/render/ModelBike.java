@@ -67,6 +67,13 @@ public class ModelBike extends ModelRideable {
     private static final float HEAD_TUBE_Z = -6.0F;
 
     /**
+     * Per-tube inset step, px, that keeps meeting frame tubes off each other's side planes (see the
+     * constructor). Far too thin to see — a few thousandths of a block — but comfortably above what the
+     * depth buffer can resolve at riding distances.
+     */
+    private static final float TUBE_INSET = 0.06F;
+
+    /**
      * @param hasBattery {@code true} to fit a battery pack + electric lights (any e-bike).
      * @param hasBasket  {@code true} to fit a front basket (the pedal bicycle, and the share e-bike).
      */
@@ -86,13 +93,20 @@ public class ModelBike extends ModelRideable {
         // Frame nodes (model space, +y down, front −z):
         //   bottom bracket BB(+2, 0), head tube HT(−9, −6), seat top ST(−11, +5),
         //   front axle FA(−1, −7), rear axle RA(−1, +7).
-        downTube = tube(2.0F, 0.0F, -9.0F, -6.0F, 2, FRAME_U, FRAME_V);   // BB → head tube
-        seatTube = tube(2.0F, 0.0F, -11.0F, 5.0F, 2, FRAME_U, FRAME_V);   // BB → seat
-        topTube = tube(-9.0F, -6.0F, -11.0F, 5.0F, 2, FRAME_U, FRAME_V);  // head tube → seat
-        fork = tube(-9.0F, -6.0F, -1.0F, -7.0F, 2, FRAME_U, FRAME_V);     // head tube → front axle
-        chainStay = tube(2.0F, 0.0F, -1.0F, 7.0F, 2, FRAME_U, FRAME_V);   // BB → rear axle
-        seatStay = tube(-11.0F, 5.0F, -1.0F, 7.0F, 2, FRAME_U, FRAME_V);  // seat → rear axle
-        stem = tube(-9.0F, -6.0F, -12.0F, -6.0F, 2, FRAME_U, FRAME_V);    // head tube → handlebar
+        //
+        // Every tube is 2 px and centred on x = 0, so left alone they ALL share the side planes
+        // x = ±1, and wherever two meet at a shallow angle their overlap runs out past the 3 px lug and
+        // the coincident faces z-fight (the head tube and seat cluster flickered visibly). So each tube
+        // is inset by its own TUBE_INSET step, chosen so no two tubes that share a node share an inset:
+        //   head tube: down 0, top 1, fork 2, stem 3   bottom bracket: down 0, chain 2, seat 3
+        //   seat cluster: stay 0, top 1, seat 3        rear axle: stay 0, chain 2
+        downTube = tube(2.0F, 0.0F, -9.0F, -6.0F, 2, 0.0F, FRAME_U, FRAME_V);                 // BB → head tube
+        seatTube = tube(2.0F, 0.0F, -11.0F, 5.0F, 2, -3 * TUBE_INSET, FRAME_U, FRAME_V);      // BB → seat
+        topTube = tube(-9.0F, -6.0F, -11.0F, 5.0F, 2, -1 * TUBE_INSET, FRAME_U, FRAME_V);     // head tube → seat
+        fork = tube(-9.0F, -6.0F, -1.0F, -7.0F, 2, -2 * TUBE_INSET, FRAME_U, FRAME_V);        // head tube → front axle
+        chainStay = tube(2.0F, 0.0F, -1.0F, 7.0F, 2, -2 * TUBE_INSET, FRAME_U, FRAME_V);      // BB → rear axle
+        seatStay = tube(-11.0F, 5.0F, -1.0F, 7.0F, 2, 0.0F, FRAME_U, FRAME_V);                // seat → rear axle
+        stem = tube(-9.0F, -6.0F, -12.0F, -6.0F, 2, -3 * TUBE_INSET, FRAME_U, FRAME_V);       // head tube → handlebar
 
         // Handlebar shrunk ~0.5 px (→ ~1 px) so it is strictly narrower than the 2 px stem it meets,
         // burying the joint instead of sharing a coplanar face (no z-fighting there).
@@ -111,7 +125,15 @@ public class ModelBike extends ModelRideable {
         // into both the basket and the handlebar so it reads as mounted, not floating.
         battery = hasBattery ? box(-1.5F, -6.0F, -4.0F, 3, 5, 3, METAL_U, METAL_V) : null;
         basket = hasBasket ? box(-2.5F, -13.0F, -12.0F, 5, 4, 4, METAL_U, METAL_V) : null;
-        basketBracket = hasBasket ? box(-1.0F, -12.0F, -9.0F, 2, 2, 4, METAL_U, METAL_V) : null;
+        // The bracket is inset a quarter-pixel all round: at its full 2 px it shared the stem's side
+        // planes where it buries into it, and z-fought there.
+        if (hasBasket) {
+            basketBracket = new ModelRenderer(this, METAL_U, METAL_V);
+            basketBracket.addBox(-1.0F, -12.0F, -9.0F, 2, 2, 4, -0.25F);
+            basketBracket.setRotationPoint(0.0F, 0.0F, 0.0F);
+        } else {
+            basketBracket = null;
+        }
 
         // Crank + pedals, rotating about the bottom bracket in time with the wheels (set from the same
         // wheelAngle in setWheelSpin, so the animated rider's legs, the crank and the wheels never drift

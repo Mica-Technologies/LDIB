@@ -84,13 +84,16 @@ public class ModelOnewheel extends ModelRideable {
         railRight = box(3.0F, 2.25F, -5.0F, 1, 2, 10, RAIL_U, RAIL_V);
 
         // End bumpers, 1 px into each shell and narrower than it (x ±3 vs ±3.5) for the same reason.
-        bumperFront = box(-3.0F, 1.5F, -11.5F, 6, 4, 3, SHELL_U, SHELL_V);
-        bumperRear = box(-3.0F, 1.5F, 8.5F, 6, 4, 3, SHELL_U, SHELL_V);
+        // Their top sits a quarter-pixel below the grip pads' (1.75 vs 1.5): the pads run half a pixel
+        // into the bumpers, and at a shared top plane the two z-fought along that strip.
+        bumperFront = box(-3.0F, 1.75F, -11.5F, 6, 4, 3, SHELL_U, SHELL_V);
+        bumperRear = box(-3.0F, 1.75F, 8.5F, 6, 4, 3, SHELL_U, SHELL_V);
 
         // Grip pads, sunk 0.5 px into the shells so they stand proud without sharing the shell's top
-        // face. Their top at y = 1.5 is what RiderPose.BOARD's mount height is measured from.
-        padFront = box(-3.0F, 1.5F, -9.0F, 6, 1, 4, ACCENT_U, ACCENT_V);
-        padRear = box(-3.0F, 1.5F, 5.0F, 6, 1, 4, ACCENT_U, ACCENT_V);
+        // face. Their top at y = 1.5 is what RiderPose.BOARD's mount height is measured from. 5 px wide
+        // (x ±2.5), inside the bumpers' ±3, so the overlap with a bumper shares no side plane either.
+        padFront = box(-2.5F, 1.5F, -9.0F, 5, 1, 4, ACCENT_U, ACCENT_V);
+        padRear = box(-2.5F, 1.5F, 5.0F, 5, 1, 4, ACCENT_U, ACCENT_V);
 
         // Lights = permanent grey housing (render) + emissive lens + additive glow (renderLights). A
         // wide, low bar across each bumper rather than the bikes' round lamp — white ahead, red behind.
