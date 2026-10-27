@@ -72,6 +72,8 @@ public class TileEntityBikeRackRenderer extends TileEntitySpecialRenderer<TileEn
 
             GlStateManager.popMatrix();
         }
+        // Not part of the matrix stack, so popMatrix does not undo it; the next TESR would inherit it.
+        GlStateManager.disableRescaleNormal();
         GlStateManager.popMatrix();
     }
 }

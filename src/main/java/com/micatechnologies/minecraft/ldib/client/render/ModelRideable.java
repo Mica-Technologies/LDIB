@@ -4,6 +4,8 @@ import net.minecraft.client.model.ModelBase;
 import net.minecraft.client.model.ModelRenderer;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.OpenGlHelper;
+import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GL14;
 
 /**
  * Common client-side base for a rideable's model — a {@link ModelBase} whose wheels can be spun from
@@ -338,7 +340,15 @@ public abstract class ModelRideable extends ModelBase {
     /**
      * Render the emissive lenses that sit in the (always-present) housings: a bright full-brightness
      * core plus an additive translucent glow that flares outward. Texture and lighting are off and the
-     * lightmap is forced full-bright, then all restored.
+     * lightmap is forced full-bright.
+     *
+     * <p>Every piece of GL state touched here is put back exactly as it was found, not reset to what a
+     * renderer usually expects. That matters because this only runs while a light is lit: a tail light
+     * flashing every few ticks toggles any leaked state at the same rate. The additive blend function
+     * used to leak (only blending itself was switched off), so whatever drew next and enabled blending
+     * without setting its own function — typically a neighbouring block's TESR, since docks draw in the
+     * tile-entity pass — drew additively and flashed in step with the tail light. Lighting and depth
+     * writes were likewise forced on rather than restored.</p>
      */
     protected static void renderLightFixtures(float scale,
                                               boolean headlightOn, ModelRenderer headLens, ModelRenderer headGlow,
@@ -350,6 +360,14 @@ public abstract class ModelRideable extends ModelBase {
         float i = Math.max(0.0F, Math.min(1.0F, intensity));
         float lastX = OpenGlHelper.lastBrightnessX;
         float lastY = OpenGlHelper.lastBrightnessY;
+        // GlStateManager keeps its cache private, so read the real state back from GL.
+        boolean wasLit = GL11.glIsEnabled(GL11.GL_LIGHTING);
+        boolean wasBlending = GL11.glIsEnabled(GL11.GL_BLEND);
+        boolean wasDepthWriting = GL11.glGetBoolean(GL11.GL_DEPTH_WRITEMASK);
+        int srcRgb = GL11.glGetInteger(GL14.GL_BLEND_SRC_RGB);
+        int dstRgb = GL11.glGetInteger(GL14.GL_BLEND_DST_RGB);
+        int srcAlpha = GL11.glGetInteger(GL14.GL_BLEND_SRC_ALPHA);
+        int dstAlpha = GL11.glGetInteger(GL14.GL_BLEND_DST_ALPHA);
 
         GlStateManager.disableTexture2D();
         GlStateManager.disableLighting();
@@ -377,12 +395,17 @@ public abstract class ModelRideable extends ModelBase {
             GlStateManager.color(BRAKE_RGB[0], BRAKE_RGB[1], BRAKE_RGB[2], 0.45F * i);
             brakeGlow.render(scale);
         }
-        GlStateManager.depthMask(true);
-        GlStateManager.disableBlend();
+        GlStateManager.depthMask(wasDepthWriting);
+        GlStateManager.tryBlendFuncSeparate(srcRgb, dstRgb, srcAlpha, dstAlpha);
+        if (!wasBlending) {
+            GlStateManager.disableBlend();
+        }
 
         GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
         OpenGlHelper.setLightmapTextureCoords(OpenGlHelper.lightmapTexUnit, lastX, lastY);
-        GlStateManager.enableLighting();
+        if (wasLit) {
+            GlStateManager.enableLighting();
+        }
         GlStateManager.enableTexture2D();
     }
 }
