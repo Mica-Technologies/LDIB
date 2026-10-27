@@ -131,4 +131,9 @@ public class Ldib {
     public void postInit(FMLPostInitializationEvent event) {
         proxy.postInit(event);
     }
+
+    @EventHandler
+    public void serverStarting(net.minecraftforge.fml.common.event.FMLServerStartingEvent event) {
+        event.registerServerCommand(new com.micatechnologies.minecraft.ldib.command.CommandLdib());
+    }
 }

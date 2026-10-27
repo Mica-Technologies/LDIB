@@ -3,6 +3,7 @@ package com.micatechnologies.minecraft.ldib.block;
 import com.micatechnologies.minecraft.ldib.LdibConfig;
 import com.micatechnologies.minecraft.ldib.api.BikeShareBilling;
 import com.micatechnologies.minecraft.ldib.api.ShareTariff;
+import com.micatechnologies.minecraft.ldib.entity.BikeVariant;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.math.BlockPos;
@@ -72,10 +73,13 @@ public final class BikeShareStation {
     public static final class Counts {
         public final int bikes;
         public final int freeDocks;
+        /** Docked bikes of each {@link BikeVariant}, indexed by {@link BikeVariant#ordinal()}. */
+        public final int[] bikesByVariant;
 
-        Counts(int bikes, int freeDocks) {
+        Counts(int bikes, int freeDocks, int[] bikesByVariant) {
             this.bikes = bikes;
             this.freeDocks = freeDocks;
+            this.bikesByVariant = bikesByVariant;
         }
     }
 
@@ -99,6 +103,7 @@ public final class BikeShareStation {
     public static Counts count(World world, BlockPos kiosk) {
         int bikes = 0;
         int freeDocks = 0;
+        int[] byVariant = new int[BikeVariant.values().length];
         // Indexed rather than for-each, and re-reading size() each step: this runs from a GUI on the
         // client and from block interaction on the server, and neither wants to throw if something
         // removes a tile entity underneath it.
@@ -111,13 +116,27 @@ public final class BikeShareStation {
             if (!withinStation(kiosk, te.getPos())) {
                 continue;
             }
-            if (((TileEntityBikeDock) te).isOccupied()) {
+            BikeVariant docked = ((TileEntityBikeDock) te).variant();
+            if (docked != null) {
                 bikes++;
+                byVariant[docked.ordinal()]++;
             } else {
                 freeDocks++;
             }
         }
-        return new Counts(bikes, freeDocks);
+        return new Counts(bikes, freeDocks, byVariant);
+    }
+
+    /**
+     * The kiosk block {@code pos} belongs to, normalised to its lower (master) half — the position a
+     * station is keyed by everywhere. {@code pos} itself if it is not a kiosk.
+     */
+    public static BlockPos master(World world, BlockPos pos) {
+        net.minecraft.block.state.IBlockState state = world.getBlockState(pos);
+        if (state.getBlock() instanceof BlockBikeKiosk && state.getValue(BlockBikeKiosk.PART) == 1) {
+            return pos.down();
+        }
+        return pos;
     }
 
     /** Bikes currently docked (available to take) at the station anchored by {@code kiosk}. */

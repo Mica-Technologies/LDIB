@@ -57,12 +57,18 @@ public class TileEntityBikeDock extends TileEntity {
         return removed;
     }
 
-    /** Mark dirty and push a block update so clients re-read the docked bike and redraw it. */
+    /**
+     * Mark dirty, push a block update so clients re-read the docked bike and redraw it, and tell the
+     * station registry. Every change to what a dock holds — returning, checking out, stocking, breaking
+     * — comes through {@link #dock} or {@link #undock}, so hooking the registry here keeps the cached
+     * station counts right without chasing each caller.
+     */
     private void sync() {
         markDirty();
         if (this.world != null && !this.world.isRemote) {
             IBlockState state = this.world.getBlockState(this.pos);
             this.world.notifyBlockUpdate(this.pos, state, state, 3);
+            BikeShareNetwork.get(this.world).dockChanged(this.world, this.pos);
         }
     }
 

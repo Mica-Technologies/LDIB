@@ -100,7 +100,9 @@ public class BlockBikeDock extends Block {
     public void onBlockPlacedBy(World world, BlockPos pos, IBlockState state, EntityLivingBase placer,
                                 ItemStack stack) {
         if (!world.isRemote) {
-            BikeShareNetwork.get(world).registerDock();
+            BikeShareNetwork network = BikeShareNetwork.get(world);
+            network.registerDock();
+            network.dockChanged(world, pos); // a new free dock at whichever station it joined
         }
     }
 
@@ -307,14 +309,19 @@ public class BlockBikeDock extends Block {
 
         // Rebalancing credit, paid back out of what was just charged. Only when rides are actually
         // billed — the credit is capped at the fare, and a free ride's fare is nothing.
+        BlockPos nearKiosk = BikeShareStation.findKioskNear(world, dockPos);
+        BlockPos returnKiosk = nearKiosk != null ? BikeShareStation.master(world, nearKiosk) : null;
+        double paidBack = 0.0D;
         if (billing == BikeShareBilling.ECONOMY && charged > 0.0D) {
-            BlockPos returnKiosk = BikeShareStation.findKioskNear(world, dockPos);
             double dropoffFill = returnKiosk != null ? stationFill(world, returnKiosk, 1) : -1.0D;
             double credit = BikeShareBilling.activeTariff().rebalanceCredit(session.pickupFill, dropoffFill, charged);
             if (credit > 0.0D && SumEconomy.adjustBalance(player, credit)) {
                 message += String.format(" Thanks for rebalancing the fleet — %.2f back.", credit);
+                paidBack = credit;
             }
         }
+        network.recordRide(player.getUniqueID(), charged, paidBack, session.kiosk, returnKiosk,
+            world.getTotalWorldTime());
         player.sendMessage(new TextComponentString(message));
     }
 
@@ -428,6 +435,10 @@ public class BlockBikeDock extends Block {
             network.unregisterDock();
         }
         super.breakBlock(world, pos, state);
+        // After super: that is what removes the tile entity, so the recount no longer sees this dock.
+        if (!world.isRemote) {
+            BikeShareNetwork.get(world).dockChanged(world, pos);
+        }
     }
 
     private static void status(EntityPlayer player, String message) {

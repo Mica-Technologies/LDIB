@@ -34,6 +34,14 @@ public interface BikeShareBilling {
         return FREE;
     }
 
+    /**
+     * What amounts are counted in, for display: empty for an economy's own currency (shown as plain
+     * numbers), otherwise an item's plural name.
+     */
+    static String currencyName() {
+        return "";
+    }
+
     /** The price list a rider would be billed against right now, or {@link ShareTariff#FREE} when free. */
     static ShareTariff activeTariff() {
         return active() == ECONOMY ? ShareTariff.fromConfig() : ShareTariff.FREE;

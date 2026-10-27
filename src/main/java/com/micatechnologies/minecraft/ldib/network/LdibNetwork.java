@@ -29,5 +29,7 @@ public final class LdibNetwork {
         CHANNEL.registerMessage(PacketGrabBike.Handler.class, PacketGrabBike.class, 2, Side.SERVER);
         CHANNEL.registerMessage(PacketSyncConfig.Handler.class, PacketSyncConfig.class, 3, Side.CLIENT);
         CHANNEL.registerMessage(PacketRingBell.Handler.class, PacketRingBell.class, 4, Side.SERVER);
+        CHANNEL.registerMessage(PacketBikeShareRequest.Handler.class, PacketBikeShareRequest.class, 5, Side.SERVER);
+        CHANNEL.registerMessage(PacketBikeShareSnapshot.Handler.class, PacketBikeShareSnapshot.class, 6, Side.CLIENT);
     }
 }

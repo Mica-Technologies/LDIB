@@ -92,6 +92,7 @@ public class BlockBikeKiosk extends Block {
             world.setBlockState(above,
                 getDefaultState().withProperty(FACING, state.getValue(FACING)).withProperty(PART, 1), 3);
         }
+        BikeShareNetwork.get(world).ensureStation(world, pos); // a new station, with whatever docks it finds
     }
 
     /** The lower (master) block position for either part of this kiosk. */
@@ -125,6 +126,8 @@ public class BlockBikeKiosk extends Block {
                                     float hitZ) {
         if (!world.isRemote && player instanceof EntityPlayerMP) {
             BlockPos master = masterPos(state, pos);
+            // Using a kiosk registers it if it predates the station registry, and refreshes its counts.
+            BikeShareNetwork.get(world).ensureStation(world, master);
             BikeShareNetwork.Session session = BikeShareNetwork.get(world).getSession(player.getUniqueID());
             long startTick = session != null ? session.startTick : 0L;
             com.micatechnologies.minecraft.ldib.api.ShareTariff tariff =
@@ -142,6 +145,7 @@ public class BlockBikeKiosk extends Block {
             BREAKING.set(true);
             try {
                 BlockPos master = masterPos(state, pos);
+                BikeShareNetwork.get(world).removeStation(master);
                 BlockPos upper = master.up();
                 if (!master.equals(pos) && world.getBlockState(master).getBlock() == this) {
                     world.setBlockToAir(master);

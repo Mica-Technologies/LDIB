@@ -48,6 +48,8 @@ public class ClientConfigSync {
 
     @SubscribeEvent
     public void onDisconnect(FMLNetworkEvent.ClientDisconnectionFromServerEvent event) {
+        // The cached bike-share snapshot belongs to the server just left; never show it on the next one.
+        com.micatechnologies.minecraft.ldib.api.BikeShareApi.clear();
         if (localSnapshot != null) {
             LdibConfig.applySyncable(localSnapshot);
             LdibConfig.applySyncableSurfaces(localSurfaces);
