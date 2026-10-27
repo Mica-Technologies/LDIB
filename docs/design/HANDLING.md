@@ -49,6 +49,16 @@ degrees of freedom would be nondeterministic across machines and would fight tha
    tapers as you speed up, so fast riding is shallow and stable and slow riding is nimble. A parked
    bike does not turn on the spot. Reversing flips the sign: bars left swings the rear right, the
    same way a car reverses.
+6. **One tyre for braking and turning.** The most grip the tyre has in any direction is taken to be
+   what it gives under full braking, `brakeDeceleration` (already scaled to the surface by
+   `withGrip`). Braking and cornering at once can ask for more — the vector sum of the braking
+   deceleration and the cornering acceleration `|speed| · ω` — and when they do, both are scaled back
+   by the same factor: the stop runs a little longer and the line a little wider. Turning alone, or
+   pedalling through a turn, never reaches the limit.
+
+The `steer` the entity passes in is not the raw A/D key. It is the **bar position**, which slews
+toward the key at `STEER_SLEW_PER_SECOND` (`BikePhysics.slewSteer`, about a sixth of a second to full
+lock and the same back to centre), because a rider's hands take a moment to put the bars over.
 
 ## Integrator
 

@@ -167,6 +167,9 @@ public class EntityBike extends Entity {
     /** Consecutive ticks this bike has spent off the ground. */
     private int ticksInAir;
 
+    /** Where the bars are, in {@code [-1, 1]}, slewing toward the rider's A/D (see {@link BikePhysics#slewSteer}). */
+    private double barPosition;
+
     /**
      * Radians a wheel turns per block of ground rolled, for pure rolling (no slip): {@code angle =
      * distance / radius}. The modeled wheel radius is ~0.4 blocks (see {@code ModelRideable}), so
@@ -742,6 +745,10 @@ public class EntityBike extends Entity {
             throttle = MathHelper.clamp(rider.moveForward, -1.0F, 1.0F);
             steer = -MathHelper.clamp(rider.moveStrafing, -1.0F, 1.0F);
         }
+        // The keys say where the rider wants the bars; the bars get there at a hand's pace. With nobody
+        // aboard the target is centre, so a bike set down mid-turn does not keep the lock it had.
+        this.barPosition = BikePhysics.slewSteer(this.barPosition, steer, LdibConstants.SECONDS_PER_TICK);
+        steer = this.barPosition;
 
         // onGround is as last tick's move() left it, which is the ground this tick starts from.
         this.ticksInAir = this.onGround ? 0 : this.ticksInAir + 1;

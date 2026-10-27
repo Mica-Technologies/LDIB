@@ -76,13 +76,31 @@ public final class BikePhysics {
         // than a lurch through the middle at braking authority.
         double speed = state.speed;
 
+        // Braking and cornering share one tyre. The most it can take in any direction is what it takes
+        // under full braking — brakeDeceleration, already scaled to the surface by withGrip — and a
+        // rider asking for a hard stop and a turn at once is asking for more than that. When the two
+        // demands together exceed it, both are scaled back by the same factor: the stop takes a little
+        // longer and the line runs a little wider. Neither alone is ever limited by this; the steering
+        // rate's own fall-off with speed keeps an ordinary turn well inside the budget.
+        boolean braking = (throttleClamped < 0.0D && speed > 0.0D) || (throttleClamped > 0.0D && speed < 0.0D);
+        double steerRate = steerRateAt(Math.abs(speed), tuning);
+        double gripShare = 1.0D;
+        if (braking && steerClamped != 0.0D && Math.abs(speed) > MIN_ROLLING_SPEED) {
+            double brakeDemand = tuning.brakeDeceleration * Math.abs(throttleClamped);
+            double cornerDemand = Math.abs(speed) * Math.toRadians(steerRate * Math.abs(steerClamped));
+            double demand = Math.sqrt(brakeDemand * brakeDemand + cornerDemand * cornerDemand);
+            if (demand > tuning.brakeDeceleration) {
+                gripShare = tuning.brakeDeceleration / demand;
+            }
+        }
+
         if (throttleClamped > 0.0D) {
             speed = speed < 0.0D
-                ? Math.min(0.0D, speed + tuning.brakeDeceleration * throttleClamped * dt)
+                ? Math.min(0.0D, speed + tuning.brakeDeceleration * gripShare * throttleClamped * dt)
                 : speed + tuning.pedalAcceleration * throttleClamped * dt;
         } else if (throttleClamped < 0.0D) {
             speed = speed > 0.0D
-                ? Math.max(0.0D, speed + tuning.brakeDeceleration * throttleClamped * dt)
+                ? Math.max(0.0D, speed + tuning.brakeDeceleration * gripShare * throttleClamped * dt)
                 : speed + tuning.reverseAcceleration * throttleClamped * dt;
         }
 
@@ -121,14 +139,37 @@ public final class BikePhysics {
         // right, the same way a car reverses. Steering authority itself depends on how fast you are
         // going, not which way, hence the absolute values.
         double heading = state.headingDegrees;
+        // The grip share was worked out from the speed the step started with; the rate is re-read at
+        // the new speed so that, as before, the turn tightens as a braking bike slows.
         if (Math.abs(speed) > MIN_ROLLING_SPEED) {
-            double steerRate = tuning.maxSteerRateDegPerSec
-                * (tuning.steerSpeedFalloff / (tuning.steerSpeedFalloff + Math.abs(speed)));
-            heading += Math.signum(speed) * steerClamped * steerRate * dt;
+            heading += Math.signum(speed) * steerClamped * steerRateAt(Math.abs(speed), tuning) * gripShare * dt;
             heading = wrapDegrees(heading);
         }
 
         return new BikeState(speed, heading);
+    }
+
+    /** Achievable steering rate, degrees/second, at {@code absSpeed}: full when slow, falling off with speed. */
+    private static double steerRateAt(double absSpeed, BikeTuning tuning) {
+        return tuning.maxSteerRateDegPerSec * (tuning.steerSpeedFalloff / (tuning.steerSpeedFalloff + absSpeed));
+    }
+
+    /**
+     * How fast the bars swing, in full-lock widths per second. A/D are on/off keys; a real rider's
+     * hands take a moment to put the bars over and to bring them back, and that moment is most of what
+     * separates turning a bike from snapping a cursor round. About a sixth of a second to full lock.
+     */
+    public static final double STEER_SLEW_PER_SECOND = 6.0D;
+
+    /**
+     * Move the bar position {@code current} toward the rider's {@code target} input by at most
+     * {@link #STEER_SLEW_PER_SECOND}{@code  * dt}. Both are in {@code [-1, 1]}, as {@link #step}'s
+     * {@code steer}. The same rate applies going out and coming back to centre.
+     */
+    public static double slewSteer(double current, double target, double dt) {
+        double maxDelta = STEER_SLEW_PER_SECOND * dt;
+        double delta = clamp(target, -1.0D, 1.0D) - current;
+        return current + clamp(delta, -maxDelta, maxDelta);
     }
 
     /**

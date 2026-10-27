@@ -248,6 +248,44 @@ class BikePhysicsTest {
     }
 
     @Test
+    void brakingInATurnWidensTheLineAndLengthensTheStop() {
+        BikeState fast = new BikeState(6.0D, 0.0D); // under the 7 b/s ceiling, so nothing is clamped
+        BikeState turnOnly = BikePhysics.step(fast, 0.0D, 1.0D, TUNING, DT);
+        BikeState brakeOnly = BikePhysics.step(fast, -1.0D, 0.0D, TUNING, DT);
+        BikeState both = BikePhysics.step(fast, -1.0D, 1.0D, TUNING, DT);
+
+        assertTrue(both.headingDegrees < turnOnly.headingDegrees,
+            "turning while braking should turn less than turning alone");
+        assertTrue(both.speed > brakeOnly.speed,
+            "braking while turning should shed less speed than braking alone");
+    }
+
+    @Test
+    void ordinaryTurningIsNotLimitedByGrip() {
+        // Pedalling through a turn never touches the shared budget; only braking does.
+        BikeState fast = new BikeState(6.0D, 0.0D); // under the 7 b/s ceiling, so nothing is clamped
+        double expected = TUNING.maxSteerRateDegPerSec
+            * (TUNING.steerSpeedFalloff / (TUNING.steerSpeedFalloff + BikePhysics.step(fast, 1.0D, 0.0D, TUNING, DT).speed))
+            * DT;
+        assertEquals(expected, BikePhysics.step(fast, 1.0D, 1.0D, TUNING, DT).headingDegrees, 1.0e-9D);
+    }
+
+    @Test
+    void barsSlewToFullLockAndBack() {
+        double bars = 0.0D;
+        bars = BikePhysics.slewSteer(bars, 1.0D, DT);
+        assertTrue(bars > 0.0D && bars < 1.0D, "one tick is not enough for full lock");
+        for (int i = 0; i < 10; i++) {
+            bars = BikePhysics.slewSteer(bars, 1.0D, DT);
+        }
+        assertEquals(1.0D, bars, 1.0e-9D, "reaches full lock and stays there");
+        for (int i = 0; i < 10; i++) {
+            bars = BikePhysics.slewSteer(bars, 0.0D, DT);
+        }
+        assertEquals(0.0D, bars, 1.0e-9D, "returns to centre");
+    }
+
+    @Test
     void wrapDegreesFoldsIntoRange() {
         assertEquals(0.0D, BikePhysics.wrapDegrees(360.0D), 1.0e-9D);
         assertEquals(-90.0D, BikePhysics.wrapDegrees(270.0D), 1.0e-9D);
