@@ -23,6 +23,14 @@ public final class Terrain {
     public static final Terrain FLAT = new Terrain(0.0D, 1.0D, 1.0D);
 
     /**
+     * Wheels in water. The drag on a tyre pushing through water swamps everything else, so the roll
+     * factor is large enough that full pedal manages a slow wade rather than a ride, and the grip is
+     * poor — a submerged tyre on a riverbed neither brakes nor steers well. A rideable that coasts
+     * into a lake stops within a couple of blocks instead of crossing it.
+     */
+    public static final Terrain WADING = new Terrain(0.0D, 0.3D, 8.0D);
+
+    /**
      * Slope along the direction the rideable is <b>pointing</b>, as rise over run. Positive is
      * uphill, so a bike facing up a 1-in-5 climb sees {@code +0.2} whether it is rolling forwards up
      * it or backwards down it — which is what makes the gravity term come out right in both cases

@@ -286,6 +286,27 @@ class BikePhysicsTest {
     }
 
     @Test
+    void impactSpeedIsOnlyTheSpeedIntoTheWall() {
+        assertEquals(6.0D, BikePhysics.wallImpactSpeed(new BikeState(6.0D, 90.0D), true, false), 1.0e-9D,
+            "square-on takes the whole speed");
+        assertEquals(6.0D * Math.sin(Math.toRadians(10.0D)),
+            BikePhysics.wallImpactSpeed(new BikeState(6.0D, 10.0D), true, false), 1.0e-9D,
+            "a graze takes only the small component into the face");
+        assertEquals(1.0D, BikePhysics.wallImpactSpeed(new BikeState(-1.0D, 0.0D), false, true), 1.0e-9D,
+            "unsigned, so backing into a wall counts too");
+        assertEquals(0.0D, BikePhysics.wallImpactSpeed(new BikeState(6.0D, 0.0D), false, false), 1.0e-9D);
+    }
+
+    @Test
+    void wadingSlowsAPedallingBikeToACrawl() {
+        BikeState s = new BikeState(6.0D, 0.0D);
+        for (int i = 0; i < 40; i++) { // 2 s of full pedal through water
+            s = BikePhysics.step(s, 1.0D, 0.0D, TUNING.withGrip(Terrain.WADING.gripFactor), Terrain.WADING, DT);
+        }
+        assertTrue(s.speed < 0.5D, "water should hold a pedalling bike to a wade, was " + s.speed);
+    }
+
+    @Test
     void wrapDegreesFoldsIntoRange() {
         assertEquals(0.0D, BikePhysics.wrapDegrees(360.0D), 1.0e-9D);
         assertEquals(-90.0D, BikePhysics.wrapDegrees(270.0D), 1.0e-9D);

@@ -251,6 +251,24 @@ public final class BikePhysics {
     }
 
     /**
+     * How fast the rideable was going <i>into</i> a wall it just hit, blocks/second, unsigned — the
+     * part of its velocity that {@link #afterWallHit} throws away. This, not the speed along the road,
+     * is what makes a crash: grazing a wall at top speed is a scrape, riding into it at half that is
+     * not. A corner, blocked on both axes, takes the whole speed.
+     */
+    public static double wallImpactSpeed(BikeState state, boolean blockedX, boolean blockedZ) {
+        if (!blockedX && !blockedZ) {
+            return 0.0D;
+        }
+        if (blockedX && blockedZ) {
+            return Math.abs(state.speed);
+        }
+        double yawRad = Math.toRadians(state.headingDegrees);
+        double into = blockedX ? -Math.sin(yawRad) : Math.cos(yawRad);
+        return Math.abs(state.speed * into);
+    }
+
+    /**
      * Speed after rolling <b>up over a lip</b> of {@code rise} blocks — a kerb, a slab, a whole block.
      *
      * <p>Deliberately not part of {@link #step}. Everything in there is a rate acting over {@code dt};

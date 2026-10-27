@@ -314,6 +314,12 @@ public class EntityBike extends Entity {
     /** Shortest gap, in ticks, between two rings of one bike's bell — a double ding, not a drone. */
     private static final long BELL_COOLDOWN_TICKS = 6L;
 
+    /** Ticks after a crash during which another wall contact is the same collision, not a new one. */
+    private static final long CRASH_COOLDOWN_TICKS = 10L;
+
+    /** World time of this bike's last crash; server-side only, never saved. */
+    private long lastCrashTick = Long.MIN_VALUE / 2;
+
     /** World time this bike's bell last rang; server-side only, never saved. */
     private long lastBellTick = Long.MIN_VALUE / 2;
 
@@ -700,6 +706,10 @@ public class EntityBike extends Entity {
      * actually going to be stepped, so parked bikes cost nothing.</p>
      */
     private Terrain currentTerrain() {
+        // Wheels in water: whatever is underneath, the water is what the tyres are fighting.
+        if (this.isInWater()) {
+            return Terrain.WADING;
+        }
         double grade = LdibConfig.slopeGravity > 0.0D ? this.gradeSmoothed : 0.0D;
         if (RoadSurfaces.isEmpty()) {
             return grade == 0.0D ? Terrain.FLAT : Terrain.FLAT.withGrade(grade);
@@ -777,7 +787,8 @@ public class EntityBike extends Entity {
 
         // onGround is as last tick's move() left it, which is the ground this tick starts from.
         this.ticksInAir = this.onGround ? 0 : this.ticksInAir + 1;
-        boolean airborne = this.ticksInAir >= AIRBORNE_AFTER_TICKS;
+        // Sinking through water is not flying: the wheels are in something they can push against.
+        boolean airborne = this.ticksInAir >= AIRBORNE_AFTER_TICKS && !this.isInWater();
 
         // Brake light: S is the brake only while there is forward motion to scrub off — once the bike
         // is stopped the same key is walking it backwards, and no bike lights up for that. Set
@@ -868,6 +879,10 @@ public class EntityBike extends Entity {
         if (!this.onGround) {
             this.motionY -= 0.08D;
             this.motionY *= 0.98D;
+            // A bike does not float, but water slows its sinking to a settle rather than a drop.
+            if (this.isInWater()) {
+                this.motionY *= 0.6D;
+            }
         }
 
         // How high a kerb this bike rides up, refreshed from config each tick rather than set once in
@@ -931,8 +946,12 @@ public class EntityBike extends Entity {
         // where the handling model is actually being run — a spectator's copy clipping a corner the
         // server rode cleanly past must not invent a slowdown the server never had.
         if (hitWall && simulate) {
-            BikeState after = BikePhysics.afterWallHit(
-                new BikeState(this.bikeSpeed, this.rotationYaw), blockedX, blockedZ);
+            BikeState before = new BikeState(this.bikeSpeed, this.rotationYaw);
+            double impact = BikePhysics.wallImpactSpeed(before, blockedX, blockedZ);
+            if (!this.world.isRemote && impact >= LdibConfig.crashSpeed) {
+                crash(impact, blockedX ? Math.signum(stepX) : 0.0D, blockedZ ? Math.signum(stepZ) : 0.0D);
+            }
+            BikeState after = BikePhysics.afterWallHit(before, blockedX, blockedZ);
             this.bikeSpeed = after.speed;
             this.rotationYaw = (float) after.headingDegrees;
         }
@@ -1067,9 +1086,55 @@ public class EntityBike extends Entity {
         this.rotationYaw += sliceYaw;
     }
 
+    /**
+     * Vanilla asks this only once the rider's <b>head</b> is under water, so answering yes puts them
+     * off the bike exactly when it has gone too deep to ride — rather than leaving them seated on it,
+     * underwater, until they drown. Wading through shallow water keeps the rider aboard; the bike just
+     * slows to a crawl ({@code Terrain.WADING}).
+     */
     @Override
     public boolean shouldDismountInWater(Entity rider) {
-        return false;
+        return true;
+    }
+
+    /**
+     * A wall hit hard enough to count as a crash, {@code impact} blocks/second into the face: a thud
+     * and a burst of the wall's own debris for everyone nearby, and crash damage to the rider if the
+     * server has it on. Server-side. {@code dirX}/{@code dirZ} point from the bike toward the wall on
+     * whichever axes stopped it (0 for one that did not).
+     */
+    private void crash(double impact, double dirX, double dirZ) {
+        // One crash per collision: a steep hit keeps a little speed into the wall for a tick or two
+        // after, and that must not thud — or hurt — a second time.
+        long now = this.world.getTotalWorldTime();
+        if (now - this.lastCrashTick < CRASH_COOLDOWN_TICKS) {
+            return;
+        }
+        this.lastCrashTick = now;
+        double reach = this.width / 2.0D + 0.5D;
+        BlockPos wallPos = new BlockPos(this.posX + dirX * reach, this.posY + 0.5D, this.posZ + dirZ * reach);
+        net.minecraft.block.state.IBlockState wall = this.world.getBlockState(wallPos);
+        if (wall.getMaterial() != net.minecraft.block.material.Material.AIR) {
+            net.minecraft.block.SoundType sound = wall.getBlock().getSoundType(wall, this.world, wallPos, this);
+            float volume = (float) Math.min(1.0D, 0.4D + impact / 12.0D);
+            this.world.playSound(null, this.posX, this.posY, this.posZ, sound.getBreakSound(),
+                net.minecraft.util.SoundCategory.NEUTRAL, volume, sound.getPitch() * 0.75F);
+            if (this.world instanceof net.minecraft.world.WorldServer) {
+                ((net.minecraft.world.WorldServer) this.world).spawnParticle(
+                    net.minecraft.util.EnumParticleTypes.BLOCK_CRACK,
+                    this.posX + dirX * this.width / 2.0D, this.posY + 0.5D, this.posZ + dirZ * this.width / 2.0D,
+                    (int) Math.min(40.0D, impact * 3.0D), 0.15D, 0.25D, 0.15D, 0.1D,
+                    net.minecraft.block.Block.getStateId(wall));
+            }
+        }
+        Entity rider = getControllingPassenger();
+        if (rider != null && LdibConfig.crashDamagePerSpeed > 0.0D) {
+            float damage = (float) ((impact - LdibConfig.crashSpeed) * LdibConfig.crashDamagePerSpeed);
+            if (damage > 0.0F) {
+                // Vanilla's elytra wall-strike damage: "experienced kinetic energy" is the right epitaph.
+                rider.attackEntityFrom(net.minecraft.util.DamageSource.FLY_INTO_WALL, damage);
+            }
+        }
     }
 
     // --- Dismount placement ------------------------------------------------------------------

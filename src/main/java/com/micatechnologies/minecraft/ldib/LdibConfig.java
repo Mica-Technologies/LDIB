@@ -257,6 +257,23 @@ public final class LdibConfig {
      */
     public static int physicsSubSteps = 2;
 
+    // --- Crashes -------------------------------------------------------------------------------
+
+    /**
+     * Speed into a wall, blocks/second, at which hitting it counts as a crash: a thud, a burst of the
+     * wall's debris, and {@link #crashDamagePerSpeed} if that is on. Measured into the face, not along
+     * the road, so grazing a wall at speed is never a crash. 4 is about 9 mph square-on. Server-side
+     * only — the effects are played by the server — so it is not synced.
+     */
+    public static double crashSpeed = 4.0D;
+
+    /**
+     * Health (half-hearts) a rider loses per block/second of impact above {@link #crashSpeed}.
+     * <b>0, the default, turns crash damage off</b>; the sound and debris still play. 1.0 makes a
+     * square-on hit at an e-bike's top speed cost about three and a half hearts. Server-side only.
+     */
+    public static double crashDamagePerSpeed = 0.0D;
+
     /** Whether the live speed readout is drawn while riding. Pure convenience; never synced. */
     public static boolean enableRideHud = true;
 
@@ -620,6 +637,13 @@ public final class LdibConfig {
         physicsSubSteps = config.get(CATEGORY_PHYSICS, "physicsSubSteps", physicsSubSteps,
             "Physics sub-steps per game tick. Higher is smoother steering and costs CPU only.",
             1, 16).getInt();
+        crashSpeed = config.get(CATEGORY_PHYSICS, "crashSpeed", crashSpeed,
+            "Speed INTO a wall (blocks/second) that counts as a crash: a thud, debris, and "
+                + "crashDamagePerSpeed if that is on. Grazing a wall is never a crash.",
+            0.5D, 60.0D).getDouble();
+        crashDamagePerSpeed = config.get(CATEGORY_PHYSICS, "crashDamagePerSpeed", crashDamagePerSpeed,
+            "Health (half-hearts) a rider loses per block/second of impact above crashSpeed. "
+                + "0 = no crash damage (sound and debris still play).", 0.0D, 10.0D).getDouble();
 
         slopeGravity = config.get(CATEGORY_PHYSICS, "slopeGravity", slopeGravity,
             "Gravity along a slope, blocks/second^2 — how much hills cost to climb and give back on "

@@ -259,6 +259,17 @@ once the wheels have been off the ground for `AIRBORNE_AFTER_TICKS` the entity s
 rolling down a slab or a graded road, which leaves the ground for a tick at a time, from feeling like
 the bars catch; a real one-block drop is about five ticks of fall.
 
+**A hard enough hit is a crash.** `BikePhysics.wallImpactSpeed` is the speed *into* the face — the part
+`afterWallHit` throws away. At or above `physics.crashSpeed` (4 b/s, about 9 mph square-on) the server
+plays the wall's own break sound and a burst of its debris, and, if `physics.crashDamagePerSpeed` is
+above its default of 0, hurts the rider with vanilla's elytra wall-strike damage. Grazing a wall at top
+speed is never a crash, because almost none of that speed is going into it.
+
+**Water is a surface, and a deep one puts you off.** Wheels in water ride `Terrain.WADING`: a roll
+factor big enough that full pedal is a slow wade, and poor grip. Sinking through water does not count
+as airborne. Once the rider's head goes under, `shouldDismountInWater` answers yes and vanilla puts them
+off, rather than leaving them seated on a sunken bike until they drown.
+
 Falls themselves need nothing from LDIB: vanilla's `Entity.fall` already hands a vehicle's fall to
 its passengers, so a rider who goes off a cliff on a bike lands as hard as one who walked off it.
 
