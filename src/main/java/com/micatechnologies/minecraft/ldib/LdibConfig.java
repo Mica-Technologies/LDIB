@@ -42,6 +42,20 @@ public final class LdibConfig {
     /** Whether to bill rentals through an installed economy mod (SUM) when any fee/rate is &gt; 0. */
     public static boolean shareUseEconomy = true;
 
+    /**
+     * Credit for each rebalancing end of a ride — taking a bike from a busy station, returning one to a
+     * starved one — in the economy's currency. 0 turns rebalancing off. Never pays out more than the
+     * ride cost (see {@code ShareTariff#rebalanceCredit}), so the default of half the unlock fee makes a
+     * full rebalancing ride's unlock free and a short one free outright.
+     */
+    public static double shareRebalanceCredit = 0.5D;
+
+    /** Station fill (bikes ÷ docks) at or above which taking a bike earns rebalancing credit. */
+    public static double shareBusyFill = 0.75D;
+
+    /** Station fill at or below which returning a bike earns rebalancing credit. */
+    public static double shareStarvedFill = 0.25D;
+
     /** Top forward speed under pedal power, blocks/second. */
     public static double maxSpeed = 7.0D;
 
@@ -770,6 +784,16 @@ public final class LdibConfig {
             "Per-minute rate for a scooter (either speed). Default $1 / 4 min.", 0.0D, 100000.0D).getDouble();
         shareUseEconomy = config.get(CATEGORY_BIKESHARE, "useEconomy", shareUseEconomy,
             "Bill rentals through an installed economy mod (SUM) when any fee/rate > 0.").getBoolean();
+        shareRebalanceCredit = config.get(CATEGORY_BIKESHARE, "rebalanceCredit", shareRebalanceCredit,
+            "Credit for each rebalancing end of a ride: taking a bike from a busy station, and returning "
+                + "one to a starved station. Paid back from the fare, never more than the ride cost, "
+                + "and only when rides are billed. 0 = off.", 0.0D, 1000.0D).getDouble();
+        shareBusyFill = config.get(CATEGORY_BIKESHARE, "rebalanceBusyFill", shareBusyFill,
+            "A station at least this full (bikes / docks) is busy: taking a bike there earns credit.",
+            0.0D, 1.0D).getDouble();
+        shareStarvedFill = config.get(CATEGORY_BIKESHARE, "rebalanceStarvedFill", shareStarvedFill,
+            "A station at most this full is starved: returning a bike there earns credit.",
+            0.0D, 1.0D).getDouble();
 
         // Stamp the file so the next load knows how old it is. Written last, and only when it actually
         // differs, so an unchanged config is not rewritten on every start just to say the same thing.

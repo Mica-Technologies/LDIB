@@ -45,6 +45,12 @@ public class BikeShareNetwork extends WorldSavedData {
         public boolean bikeTaken;
         /** World time the bike was actually taken from a dock; the billing clock starts here (0 until taken). */
         public long takenTick;
+        /**
+         * How full the station the bike was taken from was, counting that bike (see {@code
+         * ShareTariff#fill}); {@code -1} until taken, for a standalone dock, and for sessions saved
+         * before rebalancing existed — none of which earn pickup credit.
+         */
+        public double pickupFill = -1.0D;
 
         public Session(UUID player, long startTick, BlockPos kiosk, boolean bikeTaken, long takenTick) {
             this.player = player;
@@ -128,12 +134,16 @@ public class BikeShareNetwork extends WorldSavedData {
         return sessions.containsKey(player);
     }
 
-    /** Record that the player has taken their one bike out of a dock this session, at {@code tick}. */
-    public void markBikeTaken(UUID player, long tick) {
+    /**
+     * Record that the player has taken their one bike out of a dock this session, at {@code tick}, from
+     * a station {@code pickupFill} full ({@code -1} for no station).
+     */
+    public void markBikeTaken(UUID player, long tick, double pickupFill) {
         Session s = sessions.get(player);
         if (s != null) {
             s.bikeTaken = true;
             s.takenTick = tick;
+            s.pickupFill = pickupFill;
             markDirty();
         }
     }
@@ -159,8 +169,13 @@ public class BikeShareNetwork extends WorldSavedData {
             NBTTagCompound tag = list.getCompoundTagAt(i);
             UUID player = tag.getUniqueId("Player");
             BlockPos kiosk = BlockPos.fromLong(tag.getLong("Kiosk"));
-            sessions.put(player, new Session(player, tag.getLong("Start"), kiosk,
-                tag.getBoolean("BikeTaken"), tag.getLong("Taken")));
+            Session session = new Session(player, tag.getLong("Start"), kiosk,
+                tag.getBoolean("BikeTaken"), tag.getLong("Taken"));
+            // Absent in sessions saved before rebalancing existed; those stay at -1 (no pickup credit).
+            if (tag.hasKey("PickupFill")) {
+                session.pickupFill = tag.getDouble("PickupFill");
+            }
+            sessions.put(player, session);
         }
     }
 
@@ -176,6 +191,7 @@ public class BikeShareNetwork extends WorldSavedData {
             tag.setLong("Taken", s.takenTick);
             tag.setLong("Kiosk", s.kiosk.toLong());
             tag.setBoolean("BikeTaken", s.bikeTaken);
+            tag.setDouble("PickupFill", s.pickupFill);
             list.appendTag(tag);
         }
         nbt.setTag("Sessions", list);

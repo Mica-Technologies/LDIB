@@ -74,4 +74,41 @@ class ShareTariffTest {
             "the FREE tariff charges nothing no matter the ride");
         assertFalse(new ShareTariff(0.0D, 0.0D, 0.0D, 0.0D).isPaid(), "an all-zero tariff is not billed");
     }
+
+    // --- Rebalancing ---------------------------------------------------------------------------
+
+    /** Priced, with 0.5 credit per end, busy at 75% full and starved at 25%. */
+    private static final ShareTariff REBALANCING =
+        new ShareTariff(1.0D, 0.20D, 1.0D / 3.0D, 0.25D, 0.5D, 0.75D, 0.25D);
+
+    @Test
+    void fillIsBikesOverDocksAndUnknownWithNoDocks() {
+        assertEquals(0.75D, ShareTariff.fill(3, 1), EPS);
+        assertEquals(-1.0D, ShareTariff.fill(0, 0), EPS, "a station with no docks cannot be measured");
+    }
+
+    @Test
+    void eachRebalancingEndEarnsCreditOnItsOwn() {
+        assertEquals(0.5D, REBALANCING.rebalanceCredit(1.0D, 0.5D, 5.0D), EPS, "pickup from a full station");
+        assertEquals(0.5D, REBALANCING.rebalanceCredit(0.5D, 0.0D, 5.0D), EPS, "drop-off at an empty station");
+        assertEquals(1.0D, REBALANCING.rebalanceCredit(0.8D, 0.2D, 5.0D), EPS, "both ends");
+        assertEquals(0.0D, REBALANCING.rebalanceCredit(0.5D, 0.5D, 5.0D), EPS, "neither end");
+    }
+
+    @Test
+    void creditNeverExceedsTheFare() {
+        // Two one-dock stations are always full-to-empty in both directions; the cap is what stops that
+        // from paying out more than the rides cost.
+        assertEquals(0.8D, REBALANCING.rebalanceCredit(1.0D, 0.0D, 0.8D), EPS);
+        assertEquals(0.0D, REBALANCING.rebalanceCredit(1.0D, 0.0D, 0.0D), EPS, "a free ride earns nothing");
+    }
+
+    @Test
+    void unmeasuredStationsAndTariffsWithoutRebalancingEarnNothing() {
+        assertEquals(0.0D, REBALANCING.rebalanceCredit(-1.0D, -1.0D, 5.0D), EPS, "standalone docks");
+        assertEquals(0.0D, PRICED.rebalanceCredit(1.0D, 0.0D, 5.0D), EPS, "rebalancing switched off");
+        assertFalse(PRICED.isBusy(1.0D));
+        assertFalse(ShareTariff.FREE.isStarved(0.0D));
+        assertTrue(REBALANCING.isStarved(0.0D));
+    }
 }

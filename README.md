@@ -15,7 +15,7 @@ braking and speed-dependent steering:
 Plus the infrastructure around them: **owner-locked bike racks** in five styles (multi-block, and they
 show the bikes parked on them), and a **bike-share network** of docks and kiosks where you check a bike
 out at one station and return it at any other — optionally billed per minute through an installed
-economy mod. Powered variants carry a **battery** that runs down and fades the assist as it empties.
+economy mod, with credit back for riding bikes from full stations to empty ones. Powered variants carry a **battery** that runs down and fades the assist as it empties.
 
 The scope stays deliberately focused: a handful of rideables that feel good, not a general vehicle
 framework.

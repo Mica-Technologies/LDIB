@@ -103,6 +103,17 @@ public class GuiKiosk extends GuiScreen {
         drawCenteredString(this.fontRenderer, bikes + " bike" + (bikes == 1 ? "" : "s") + " available", cx, cy - 46, 0xFFFFFF);
         drawCenteredString(this.fontRenderer, freeDocks + " free dock" + (freeDocks == 1 ? "" : "s"), cx, cy - 34, 0xCCCCCC);
 
+        // Rebalancing: tell riders when this station is one the fleet wants emptied or filled, which is
+        // the only way anyone would know to earn the credit. Same thresholds the server pays out on.
+        double fill = ShareTariff.fill(bikes, freeDocks);
+        if (tariff.isBusy(fill)) {
+            drawCenteredString(this.fontRenderer, "Station full — ride a bike away for credit back",
+                cx, cy - 25, 0x7FD3FF);
+        } else if (tariff.isStarved(fill)) {
+            drawCenteredString(this.fontRenderer, "Station low — return a bike here for credit back",
+                cx, cy - 25, 0x7FD3FF);
+        }
+
         if (tariff.isPaid()) {
             drawCenteredString(this.fontRenderer,
                 String.format("Unlock %.2f  •  Bike %.2f/min", tariff.unlockFee, tariff.bikePerMinute()),

@@ -2,9 +2,12 @@ package com.micatechnologies.minecraft.ldib.block;
 
 import com.micatechnologies.minecraft.ldib.LdibConstants;
 import com.micatechnologies.minecraft.ldib.LdibTab;
+import com.micatechnologies.minecraft.ldib.api.BikeShareBilling;
+import com.micatechnologies.minecraft.ldib.api.ShareTariff;
 import com.micatechnologies.minecraft.ldib.entity.BikeVariant;
 import com.micatechnologies.minecraft.ldib.entity.EntityBike;
 import com.micatechnologies.minecraft.ldib.entity.RideablePlacement;
+import com.micatechnologies.minecraft.ldib.integration.SumEconomy;
 import com.micatechnologies.minecraft.ldib.item.ItemBike;
 import com.micatechnologies.minecraft.ldib.item.LdibItems;
 import net.minecraft.block.Block;
@@ -189,7 +192,7 @@ public class BlockBikeDock extends Block {
             bike.removePassengers();
             bike.setDead();
             network.bikeReturned();
-            completeSessionOnReturn(world, player, network, returned);
+            completeSessionOnReturn(world, pos, player, network, returned);
             return true;
         }
         if (held.getItem() instanceof ItemBike) {
@@ -242,13 +245,16 @@ public class BlockBikeDock extends Block {
             return true;
         }
 
-        // 3. Hand it over.
+        // 3. Hand it over. How full the station was is read first, with this bike still in its dock, so
+        // the last bikes at a full station count as taken from a full station (rebalancing credit).
+        double pickupFill = session != null && BikeShareStation.isKiosk(world, session.kiosk)
+            ? stationFill(world, session.kiosk, 0) : -1.0D;
         BikeVariant variant = dock.undock();
         release(world, spot, variant);
         network.bikeCheckedOut();
         long now = world.getTotalWorldTime();
         if (session != null) {
-            network.markBikeTaken(player.getUniqueID(), now);
+            network.markBikeTaken(player.getUniqueID(), now, pickupFill);
             status(player, "Enjoy your ride — return it at any station dock when you're done.");
         } else {
             // Standalone self-serve. This used to hand over a bike and open NO session, so
@@ -257,16 +263,30 @@ public class BlockBikeDock extends Block {
             // and start its clock, anchored to this dock (there is no kiosk to anchor it to; nothing
             // reads that field again once the bike is marked taken).
             network.startSession(player.getUniqueID(), pos, now);
-            network.markBikeTaken(player.getUniqueID(), now);
+            network.markBikeTaken(player.getUniqueID(), now, -1.0D); // no station, no rebalancing
             status(player, "Checked out a bike — return it at any dock. ("
                 + network.available() + " available in the network)");
         }
         return true;
     }
 
-    /** If the returning player had an open rental, close it, bill for the minutes, and chat them. */
-    private static void completeSessionOnReturn(World world, EntityPlayer player, BikeShareNetwork network,
-                                                BikeVariant variant) {
+    /**
+     * How full the station anchored by {@code kiosk} is (see {@link ShareTariff#fill}), with
+     * {@code bikesToDiscount} of its docked bikes counted as still-free docks — 1 when the caller has
+     * just docked the very bike whose arrival is being judged, so the station is measured as the rider
+     * found it.
+     */
+    private static double stationFill(World world, BlockPos kiosk, int bikesToDiscount) {
+        BikeShareStation.Counts counts = BikeShareStation.count(world, kiosk);
+        return ShareTariff.fill(counts.bikes - bikesToDiscount, counts.freeDocks + bikesToDiscount);
+    }
+
+    /**
+     * If the returning player had an open rental, close it, bill for the minutes, credit any rebalancing,
+     * and chat them. {@code dockPos} is the dock the bike has just been clipped into.
+     */
+    private static void completeSessionOnReturn(World world, BlockPos dockPos, EntityPlayer player,
+                                                BikeShareNetwork network, BikeVariant variant) {
         BikeShareNetwork.Session session = network.endSession(player.getUniqueID());
         if (session == null) {
             status(player, "Returned your bike to the dock. ("
@@ -277,12 +297,23 @@ public class BlockBikeDock extends Block {
         long clockStart = session.takenTick > 0L ? session.takenTick : session.startTick;
         long elapsed = Math.max(0L, world.getTotalWorldTime() - clockStart);
         int minutes = (int) Math.max(1L, (elapsed + 1199L) / 1200L); // ceil to whole minutes, min 1
-        double charged = com.micatechnologies.minecraft.ldib.api.BikeShareBilling.active()
-            .charge(player, variant, minutes);
+        BikeShareBilling billing = BikeShareBilling.active();
+        double charged = billing.charge(player, variant, minutes);
         String message = "Your bike-share session is complete — " + minutes
             + (minutes == 1 ? " minute." : " minutes.");
         if (charged > 0.0D) {
             message += String.format(" You were charged %.2f.", charged);
+        }
+
+        // Rebalancing credit, paid back out of what was just charged. Only when rides are actually
+        // billed — the credit is capped at the fare, and a free ride's fare is nothing.
+        if (billing == BikeShareBilling.ECONOMY && charged > 0.0D) {
+            BlockPos returnKiosk = BikeShareStation.findKioskNear(world, dockPos);
+            double dropoffFill = returnKiosk != null ? stationFill(world, returnKiosk, 1) : -1.0D;
+            double credit = BikeShareBilling.activeTariff().rebalanceCredit(session.pickupFill, dropoffFill, charged);
+            if (credit > 0.0D && SumEconomy.adjustBalance(player, credit)) {
+                message += String.format(" Thanks for rebalancing the fleet — %.2f back.", credit);
+            }
         }
         player.sendMessage(new TextComponentString(message));
     }
@@ -315,7 +346,7 @@ public class BlockBikeDock extends Block {
         bike.setDead();
         BikeShareNetwork network = BikeShareNetwork.get(world);
         network.bikeReturned();
-        completeSessionOnReturn(world, player, network, returned);
+        completeSessionOnReturn(world, pos, player, network, returned);
         return true;
     }
 
