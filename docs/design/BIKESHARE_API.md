@@ -63,3 +63,10 @@ A ride earns credit for each end that helps the fleet: taking its bike from a bu
 `rebalanceBusyFill` full) and returning it to a starved one (at most `rebalanceStarvedFill`). Each
 qualifying end pays `rebalanceCredit`, the total is capped at what the ride cost, and it is only paid
 when rides are billed. Stations are judged as the rider found them.
+
+## LDIBike, the phone app
+
+LDIB uses this API itself for **LDIBike**, an app on SUM's phone (`client/phone/LdibikePhoneApp`),
+registered when SUM is installed and has its phone app API (`sum.api.phone`, SUM's
+`docs/PHONE_APP_API.md`). LDIB compiles against copies of those few SUM types kept in
+`src/sumPhoneStubs/java` and never packaged (see `addon.gradle`); keep them in step with SUM.

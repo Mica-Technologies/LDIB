@@ -47,6 +47,16 @@ public final class StationMath {
         return points[index];
     }
 
+    /**
+     * Which of eight arrows points at a target {@code relativeBearing} degrees off where the player
+     * faces (see {@link #relativeBearing}): 0 is straight ahead, then clockwise — 1 ahead-right,
+     * 2 right, 3 behind-right, 4 behind, 5 behind-left, 6 left, 7 ahead-left.
+     */
+    public static int arrowIndex(double relativeBearing) {
+        long octant = Math.round(wrap(relativeBearing) / 45.0D);
+        return (int) (((octant % 8) + 8) % 8);
+    }
+
     /** Fold an angle into {@code [-180, 180)}. */
     public static double wrap(double degrees) {
         double d = degrees % 360.0D;

@@ -94,3 +94,30 @@ if (project.hasProperty('rosetta')) {
         it.javaLauncher.set(rosettaLauncher)
     }
 }
+
+// ---------------------------------------------------------------------------
+// Compile-only stand-ins for SUM's phone app API (com.micatechnologies.minecraft.sum.api.phone).
+//
+// LDIB's phone app (client/phone) implements SUM's PhoneApp, but SUM is optional and there is no
+// hosted SUM artifact a clean checkout -- or CI -- can resolve. So LDIB compiles against these copies of
+// the few API types it uses, and they are never packaged: at runtime the real classes come from SUM,
+// or the app is simply not registered (LdibClientProxy checks for SUM first). The copies must match
+// SUM's signatures exactly; SUM's docs/PHONE_APP_API.md and its api/phone sources are the reference.
+sourceSets {
+    sumPhoneStubs {
+        java {
+            srcDir 'src/sumPhoneStubs/java'
+            compileClasspath += patchedMc.output + mcLauncher.output
+        }
+    }
+}
+tasks.named('compileSumPhoneStubsJava').configure {
+    options.release = 8
+}
+// On compileJava's own classpath rather than the compileOnly configuration: RFG scans that
+// configuration for access transformers (extractDependencyATs) before Minecraft is patched, and the
+// stubs need patched Minecraft to compile, which made a task cycle.
+tasks.named('compileJava').configure {
+    classpath += sourceSets.sumPhoneStubs.output
+    dependsOn 'compileSumPhoneStubsJava'
+}

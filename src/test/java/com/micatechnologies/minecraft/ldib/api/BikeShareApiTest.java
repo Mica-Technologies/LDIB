@@ -48,6 +48,18 @@ class BikeShareApiTest {
     }
 
     @Test
+    void arrowsPointClockwiseFromAhead() {
+        assertEquals(0, StationMath.arrowIndex(0.0D));
+        assertEquals(0, StationMath.arrowIndex(20.0D));
+        assertEquals(1, StationMath.arrowIndex(45.0D));
+        assertEquals(2, StationMath.arrowIndex(90.0D), "positive relative bearing is to the right");
+        assertEquals(4, StationMath.arrowIndex(-180.0D));
+        assertEquals(4, StationMath.arrowIndex(179.0D));
+        assertEquals(6, StationMath.arrowIndex(-90.0D));
+        assertEquals(7, StationMath.arrowIndex(-45.0D));
+    }
+
+    @Test
     void distanceIgnoresHeight() {
         assertEquals(5.0D, StationMath.distance(0, 0, 3, 4), EPS);
     }

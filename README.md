@@ -17,6 +17,8 @@ show the bikes parked on them), and a **bike-share network** of docks and kiosks
 out at one station and return it at any other — billed per minute in emeralds (or any item), or
 through SUM's economy when it is installed, with credit back for riding bikes from full stations
 to empty ones. Powered variants carry a **battery** that runs down and fades the assist as it empties.
+With SUM installed, the **LDIBike** app on its phone points you to the nearest stations, shows what is
+docked where, and tracks your rides and rebalancing credit.
 
 The scope stays deliberately focused: a handful of rideables that feel good, not a general vehicle
 framework.

@@ -92,6 +92,29 @@ public class LdibClientProxy extends LdibCommonProxy {
     @Override
     public void init(FMLInitializationEvent event) {
         super.init(event);
+        registerPhoneApp();
+    }
+
+    /**
+     * Put LDIBike on SUM's phone, if SUM is installed and new enough to have a phone app API. SUM is
+     * optional, and a SUM from before that API has none of its classes, so linking
+     * {@code client.phone.SumPhone} throws — caught here, and the bike-share simply has no phone app.
+     */
+    private static void registerPhoneApp() {
+        if (!net.minecraftforge.fml.common.Loader.isModLoaded("sum")) {
+            return;
+        }
+        try {
+            if (com.micatechnologies.minecraft.ldib.client.phone.SumPhone.register()) {
+                com.micatechnologies.minecraft.ldib.Ldib.LOGGER.info("LDIBike is on SUM's phone.");
+            } else {
+                com.micatechnologies.minecraft.ldib.Ldib.LOGGER.info(
+                    "SUM's phone app API is a version LDIB does not know; no LDIBike app.");
+            }
+        } catch (NoClassDefFoundError | IllegalArgumentException e) {
+            com.micatechnologies.minecraft.ldib.Ldib.LOGGER.info(
+                "This SUM has no phone app API, so there is no LDIBike app on its phone ({}).", e.toString());
+        }
     }
 
     @Override
