@@ -229,6 +229,29 @@ The table is **synced to clients** alongside the numeric config, for the same re
 a client that thinks a road is gravel predicts a slower bike than the server is simulating, and
 rubber-bands.
 
+## Walls and air
+
+Two things the road does *not* do are modelled as carefully as the things it does.
+
+**A wall takes only the speed going into it.** Minecraft walls are axis-aligned, so `EntityBike`
+works out which horizontal axis stopped the move and hands that to `BikePhysics.afterWallHit`. The
+part of the velocity into the face is lost, the part along it is kept (less a scrape,
+`WALL_SCRAPE_RETAIN`), and a glancing hit — shallower than `WALL_GLANCE_DEGREES` — also turns the bike
+to run along the face. The turn is the important half. Motion is always along the heading, so a bike
+whose speed was cut but which still pointed into the wall hit it again next tick, and the tick after:
+the old flat "halve the speed on contact" made brushing a wall a repeated, sticky stop. Steeper hits
+leave the heading alone (swinging the rider's view round would be worse than stopping) and keep only
+their small along-the-wall share; a corner, blocked on both axes, stops the bike dead.
+
+**In the air the inputs do nothing.** Pedalling, braking and steering all push against the road, so
+once the wheels have been off the ground for `AIRBORNE_AFTER_TICKS` the entity steps
+`BikePhysics.stepAirborne` instead — air drag only, heading held. The grace period is what keeps
+rolling down a slab or a graded road, which leaves the ground for a tick at a time, from feeling like
+the bars catch; a real one-block drop is about five ticks of fall.
+
+Falls themselves need nothing from LDIB: vanilla's `Entity.fall` already hands a vehicle's fall to
+its passengers, so a rider who goes off a cliff on a bike lands as hard as one who walked off it.
+
 ## What is deliberately **not** modelled (yet)
 
 - **Lean / countersteer.** Purely cosmetic for now, and it belongs in the renderer, not here.

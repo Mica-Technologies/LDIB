@@ -195,6 +195,59 @@ class BikePhysicsTest {
     }
 
     @Test
+    void inputsDoNothingInTheAir() {
+        BikeState flying = new BikeState(5.0D, 30.0D);
+        BikeState after = BikePhysics.stepAirborne(flying, TUNING, DT);
+        assertEquals(30.0D, after.headingDegrees, 1.0e-9D, "heading holds in the air");
+        assertTrue(after.speed < flying.speed, "air drag still acts");
+        // Compare with the same tick on the ground at full pedal: the road is what the pedals push on.
+        assertTrue(after.speed < BikePhysics.step(flying, 1.0D, 0.0D, TUNING, DT).speed,
+            "pedalling in the air must not add speed");
+    }
+
+    @Test
+    void grazingAWallKeepsMostSpeedAndTurnsAlongIt() {
+        // Heading 10 degrees off due south (+Z), into a wall that blocks X.
+        BikeState grazing = new BikeState(6.0D, 10.0D);
+        BikeState after = BikePhysics.afterWallHit(grazing, true, false);
+        assertEquals(0.0D, after.headingDegrees, 1.0e-9D, "turned to run along the wall");
+        assertTrue(after.speed > 0.85D * grazing.speed, "a graze should keep most of its speed");
+    }
+
+    @Test
+    void ridingIntoAWallHeadOnStopsTheBike() {
+        BikeState headOn = new BikeState(6.0D, 90.0D); // due west, into a wall that blocks X
+        BikeState after = BikePhysics.afterWallHit(headOn, true, false);
+        assertEquals(0.0D, after.speed, 1.0e-6D);
+        assertEquals(90.0D, after.headingDegrees, 1.0e-9D, "a steep hit does not spin the bike");
+    }
+
+    @Test
+    void steepWallHitKeepsHeadingAndOnlyTheAlongWallShare() {
+        BikeState steep = new BikeState(6.0D, 60.0D); // 60 degrees into an X-blocking wall
+        BikeState after = BikePhysics.afterWallHit(steep, true, false);
+        assertEquals(60.0D, after.headingDegrees, 1.0e-9D);
+        assertEquals(6.0D * Math.cos(Math.toRadians(60.0D)) * BikePhysics.WALL_SCRAPE_RETAIN,
+            after.speed, 1.0e-9D);
+    }
+
+    @Test
+    void reversingIntoAWallKeepsBackingAlongIt() {
+        // Heading 170 faces almost due north; backing up moves almost due south, 10 degrees into a
+        // wall that blocks X.
+        BikeState backing = new BikeState(-1.0D, 170.0D);
+        BikeState after = BikePhysics.afterWallHit(backing, true, false);
+        assertTrue(after.speed < 0.0D, "still reversing");
+        assertEquals(-180.0D, after.headingDegrees, 1.0e-9D, "heading squared up to the wall, tail first");
+    }
+
+    @Test
+    void aCornerStopsTheBike() {
+        BikeState after = BikePhysics.afterWallHit(new BikeState(6.0D, 45.0D), true, true);
+        assertEquals(0.0D, after.speed, 1.0e-9D);
+    }
+
+    @Test
     void wrapDegreesFoldsIntoRange() {
         assertEquals(0.0D, BikePhysics.wrapDegrees(360.0D), 1.0e-9D);
         assertEquals(-90.0D, BikePhysics.wrapDegrees(270.0D), 1.0e-9D);

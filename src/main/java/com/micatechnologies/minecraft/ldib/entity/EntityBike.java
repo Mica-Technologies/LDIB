@@ -154,6 +154,20 @@ public class EntityBike extends Entity {
     private static final double IDLE_SPEED = BikePhysics.MIN_ROLLING_SPEED;
 
     /**
+     * Ticks off the ground before the wheels lose the road (see {@link BikePhysics#stepAirborne}).
+     * Rolling down a slab or a graded road leaves the ground for a tick or two at a time, and taking
+     * the bars away for that would feel like them catching; a real drop is longer. A one-block drop
+     * is about five ticks of fall, so this only bites on genuine air.
+     */
+    private static final int AIRBORNE_AFTER_TICKS = 3;
+
+    /** Shortfall (blocks) between requested and actual sub-step movement that counts as blocked. */
+    private static final double WALL_EPSILON = 1.0e-7D;
+
+    /** Consecutive ticks this bike has spent off the ground. */
+    private int ticksInAir;
+
+    /**
      * Radians a wheel turns per block of ground rolled, for pure rolling (no slip): {@code angle =
      * distance / radius}. The modeled wheel radius is ~0.4 blocks (see {@code ModelRideable}), so
      * {@code 1 / 0.4 = 2.5} rad/block.
@@ -729,6 +743,10 @@ public class EntityBike extends Entity {
             steer = -MathHelper.clamp(rider.moveStrafing, -1.0F, 1.0F);
         }
 
+        // onGround is as last tick's move() left it, which is the ground this tick starts from.
+        this.ticksInAir = this.onGround ? 0 : this.ticksInAir + 1;
+        boolean airborne = this.ticksInAir >= AIRBORNE_AFTER_TICKS;
+
         // Brake light: S is the brake only while there is forward motion to scrub off — once the bike
         // is stopped the same key is walking it backwards, and no bike lights up for that. Set
         // server-side; the synced flag lights the brake light on every observer's client.
@@ -749,7 +767,17 @@ public class EntityBike extends Entity {
             // updates. Running the handling model here would only invent a different answer from the
             // one about to be corrected in.
             this.bikeSpeed = this.dataManager.get(SPEED);
-        } else if (controller != null || Math.abs(this.bikeSpeed) > IDLE_SPEED) {
+        } else if (airborne && Math.abs(this.bikeSpeed) > IDLE_SPEED) {
+            // Wheels off the road: nothing to pedal, brake or steer against, so the inputs are ignored
+            // and only air drag acts. The ground under a bike in the air is not sampled either.
+            int subSteps = Math.max(1, LdibConfig.physicsSubSteps);
+            double dt = LdibConstants.SECONDS_PER_TICK / subSteps;
+            BikeState state = new BikeState(this.bikeSpeed, this.rotationYaw);
+            for (int i = 0; i < subSteps; i++) {
+                state = BikePhysics.stepAirborne(state, assistedTuning(), dt);
+            }
+            this.bikeSpeed = state.speed;
+        } else if (!airborne && (controller != null || Math.abs(this.bikeSpeed) > IDLE_SPEED)) {
             int subSteps = Math.max(1, LdibConfig.physicsSubSteps);
             double dt = LdibConstants.SECONDS_PER_TICK / subSteps;
             // Sample the ground once per tick, not once per sub-step: the block under the bike cannot
@@ -782,7 +810,7 @@ public class EntityBike extends Entity {
         // is legwork on every variant, and it arrives here as a negative distance that
         // BatteryModel.drain ignores — so a reversing rider spends nothing, and cannot regenerate
         // either.
-        if (!this.world.isRemote && throttle > 0.0D && variant().hasBattery()) {
+        if (!this.world.isRemote && throttle > 0.0D && !airborne && variant().hasBattery()) {
             drainBattery(this.bikeSpeed * LdibConstants.SECONDS_PER_TICK);
         }
 
@@ -834,12 +862,20 @@ public class EntityBike extends Entity {
         double stepY = this.motionY / moveSteps;
         double stepZ = this.motionZ / moveSteps;
         boolean hitWall = false;
+        boolean blockedX = false;
+        boolean blockedZ = false;
         int stepsTaken = 0;
         for (int i = 0; i < moveSteps; i++) {
+            double beforeX = this.posX;
+            double beforeZ = this.posZ;
             this.move(MoverType.SELF, stepX, stepY, stepZ);
             stepsTaken++;
             if (this.collidedHorizontally) {
                 hitWall = true; // stop at the wall rather than grinding the remaining sub-steps into it
+                // Which axis stopped it is what the wall response needs (walls are axis-aligned), and
+                // move() only reports that something did: compare what was asked for with what moved.
+                blockedX = Math.abs((this.posX - beforeX) - stepX) > WALL_EPSILON;
+                blockedZ = Math.abs((this.posZ - beforeZ) - stepZ) > WALL_EPSILON;
                 break;
             }
         }
@@ -857,11 +893,16 @@ public class EntityBike extends Entity {
         if (this.onGround) {
             this.motionY = 0.0D;
         }
-        // Ran into a wall: bleed off speed rather than grinding along it at full pedal. Only where the
-        // handling model is actually being run — a spectator's copy clipping a corner the server rode
-        // cleanly past must not invent a slowdown the server never had.
+        // Ran into a wall: lose the speed going into it, keep the speed along it, and turn to follow
+        // the face if the hit was a glancing one (see BikePhysics#afterWallHit) — so brushing a wall
+        // scrapes, riding into one stops you, and neither leaves the bike stuck re-hitting it. Only
+        // where the handling model is actually being run — a spectator's copy clipping a corner the
+        // server rode cleanly past must not invent a slowdown the server never had.
         if (hitWall && simulate) {
-            this.bikeSpeed *= 0.5D;
+            BikeState after = BikePhysics.afterWallHit(
+                new BikeState(this.bikeSpeed, this.rotationYaw), blockedX, blockedZ);
+            this.bikeSpeed = after.speed;
+            this.rotationYaw = (float) after.headingDegrees;
         }
 
         // Bill for any kerb, slab or whole block just climbed. Same window as updateGrade() below, and

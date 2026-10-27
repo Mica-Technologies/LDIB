@@ -132,6 +132,84 @@ public final class BikePhysics {
     }
 
     /**
+     * Advance one step <b>with the wheels off the ground</b>: the rider's inputs do nothing, because
+     * pedalling, braking and steering are all things a tyre does against the road. All that acts on
+     * the speed is air drag; rolling resistance needs something to roll on, and slope gravity is
+     * gravity along a road that is not there (the fall itself is the entity layer's business). The
+     * heading holds — a bike in the air keeps pointing where it left the ground.
+     *
+     * <p>The caller decides what counts as airborne. It should not be every tick the entity reports
+     * itself off the ground: rolling down a slab or a graded road leaves the ground for a tick at a
+     * time, and taking steering away for that would feel like the bars catching.</p>
+     */
+    public static BikeState stepAirborne(BikeState state, BikeTuning tuning, double dt) {
+        double speed = state.speed;
+        speed -= tuning.airDrag * speed * Math.abs(speed) * dt;
+        return new BikeState(speed, state.headingDegrees);
+    }
+
+    /**
+     * Incidence, in degrees off the wall's face, below which hitting a wall turns the rideable to run
+     * along it rather than only slowing it. Shallow enough that the turn it costs reads as being
+     * steered by the wall, not spun round by it.
+     */
+    public static final double WALL_GLANCE_DEGREES = 35.0D;
+
+    /** Fraction of the along-the-wall speed kept after scraping a wall — the friction of the contact. */
+    public static final double WALL_SCRAPE_RETAIN = 0.9D;
+
+    /**
+     * The state after the rideable ran into a wall this tick — what is left of its motion, and which
+     * way it now points.
+     *
+     * <p>Minecraft's walls are axis-aligned, so a contact is fully described by which horizontal axis
+     * the movement was stopped on. Only the part of the velocity <i>into</i> the wall is lost; the part
+     * along it survives, less some scrape. That is what separates brushing a wall from riding into
+     * one: a shallow graze keeps most of the speed and turns the bike to run along the face, while a
+     * head-on hit keeps none.</p>
+     *
+     * <p>The turn matters as much as the speed. Motion here is always along the heading, so a bike
+     * whose speed was cut but whose heading still pointed into the wall would hit it again next tick,
+     * and the one after — the contact repeating until it had bled away all its speed. Turning it
+     * parallel ends the contact. Steeper than {@link #WALL_GLANCE_DEGREES} the heading is left alone,
+     * because swinging the bike (and the rider's view) through a large angle would be worse than the
+     * stop; there the speed simply falls to its along-the-wall share, which at a steep angle is little.
+     *
+     * <p>Signed like every other speed here: a rideable backing into a wall keeps backing, along it.
+     *
+     * @param blockedX whether the movement was stopped along the X axis (a wall facing east or west)
+     * @param blockedZ whether it was stopped along Z; both together is a corner, which stops it dead
+     */
+    public static BikeState afterWallHit(BikeState state, boolean blockedX, boolean blockedZ) {
+        double speed = state.speed;
+        if (Math.abs(speed) <= MIN_ROLLING_SPEED || (!blockedX && !blockedZ)) {
+            return state;
+        }
+        if (blockedX && blockedZ) {
+            return new BikeState(0.0D, state.headingDegrees);
+        }
+        // Minecraft forward for a yaw is (-sin yaw, cos yaw).
+        double yawRad = Math.toRadians(state.headingDegrees);
+        double forwardX = -Math.sin(yawRad);
+        double forwardZ = Math.cos(yawRad);
+        double into = Math.abs(blockedX ? forwardX : forwardZ);
+        double along = blockedX ? forwardZ : forwardX;
+        double incidenceDegrees = Math.toDegrees(Math.asin(clamp(into, 0.0D, 1.0D)));
+        double kept = Math.abs(speed) * Math.abs(along) * WALL_SCRAPE_RETAIN;
+
+        if (incidenceDegrees > WALL_GLANCE_DEGREES || along == 0.0D) {
+            return new BikeState(Math.signum(speed) * kept, state.headingDegrees);
+        }
+        // Point the heading straight along the wall, on the side it was already leaning toward. The
+        // heading, not the direction of travel, is what gets turned, so a reversing bike keeps its
+        // tail leading and its speed negative.
+        double newForwardX = blockedX ? 0.0D : Math.signum(along);
+        double newForwardZ = blockedX ? Math.signum(along) : 0.0D;
+        double heading = Math.toDegrees(Math.atan2(-newForwardX, newForwardZ));
+        return new BikeState(Math.signum(speed) * kept, wrapDegrees(heading));
+    }
+
+    /**
      * Speed after rolling <b>up over a lip</b> of {@code rise} blocks — a kerb, a slab, a whole block.
      *
      * <p>Deliberately not part of {@link #step}. Everything in there is a rate acting over {@code dt};
