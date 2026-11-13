@@ -32,7 +32,9 @@ public final class RideablePlacement {
 
     /**
      * Front-to-back extent of a rideable <b>as drawn</b>, in blocks. The models put wheel centres at
-     * ±7 px with a 7 px radius (see {@code ModelBike}), i.e. ±0.875 blocks, plus a little margin.
+     * 16 px apart with a 5.5 px radius and a mudguard outside that (see {@code BikeModel}), about
+     * 1.8 blocks end to end. (A bicycle sits forward of its own origin, by 2.5 px; a released bike is
+     * placed with clear ground around it, so that is inside the margin.)
      * Deliberately larger than {@code EntityBike}'s 0.8-wide collision box: this search is about the
      * bike not <i>looking</i> like it is inside something.
      */

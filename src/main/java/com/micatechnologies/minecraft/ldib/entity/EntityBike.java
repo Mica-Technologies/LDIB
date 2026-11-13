@@ -172,8 +172,10 @@ public class EntityBike extends Entity {
 
     /**
      * Radians a wheel turns per block of ground rolled, for pure rolling (no slip): {@code angle =
-     * distance / radius}. The modeled wheel radius is ~0.4 blocks (see {@code ModelRideable}), so
-     * {@code 1 / 0.4 = 2.5} rad/block.
+     * distance / radius} for a nominal wheel of 0.4 blocks radius, so {@code 1 / 0.4 = 2.5} rad/block.
+     * No model's wheel is exactly that size; each scales this angle by {@code 0.4 / its own radius}
+     * when it draws (see {@code RideableModel}), so every wheel rolls at ground speed whatever its size
+     * while the crank, which is geared off this angle, stays the same for all of them.
      */
     private static final float WHEEL_RADIANS_PER_BLOCK = 2.5F;
 
@@ -309,6 +311,38 @@ public class EntityBike extends Entity {
     /** Whether the rider is currently braking — read by the renderer to light the brake light. */
     public boolean isBraking() {
         return this.dataManager.get(BRAKING);
+    }
+
+    /** How long a headlight's "is it dark here?" answer is reused for, in ticks. */
+    private static final long DARKNESS_CHECK_INTERVAL = 10L;
+    private long darknessCheckedAt = -DARKNESS_CHECK_INTERVAL; // so the first ask always checks
+    private boolean darkAround;
+
+    /**
+     * Whether it is dark enough where this bike is for a headlight to be on — read by the renderer.
+     *
+     * <p>The answer is worked out at most every {@link #DARKNESS_CHECK_INTERVAL} ticks and reused in
+     * between. The renderer asks once per frame per bike, and the question costs two light lookups in
+     * the world; a headlight that reacts half a second late to riding into a tunnel is not something
+     * anyone can see, whereas a per-frame world query for every bike in view is exactly the kind of
+     * cost that only shows up at a busy bike-share station.</p>
+     *
+     * <p>Stored sky light stays 15 under open sky whatever the time (day and night are a render-only
+     * dimming), so darkness is judged from the time of day, plus the block light for caves and shade:
+     * dark when it is night or the spot has little sky access, and there is no bright light nearby.</p>
+     */
+    public boolean isDarkAround() {
+        long now = this.world.getTotalWorldTime();
+        if (now - this.darknessCheckedAt >= DARKNESS_CHECK_INTERVAL || now < this.darknessCheckedAt) {
+            this.darknessCheckedAt = now;
+            BlockPos pos = new BlockPos(this.posX, this.posY + 0.5D, this.posZ);
+            long timeOfDay = ((this.world.getWorldTime() % 24000L) + 24000L) % 24000L;
+            boolean night = timeOfDay >= 13000L && timeOfDay <= 23000L;
+            int blockLight = this.world.getLightFor(net.minecraft.world.EnumSkyBlock.BLOCK, pos);
+            int skyLight = this.world.getLightFor(net.minecraft.world.EnumSkyBlock.SKY, pos);
+            this.darkAround = blockLight < 8 && (night || skyLight < 8);
+        }
+        return this.darkAround;
     }
 
     /** Shortest gap, in ticks, between two rings of one bike's bell — a double ding, not a drone. */
@@ -475,7 +509,11 @@ public class EntityBike extends Entity {
 
     @Override
     public boolean shouldRiderSit() {
-        return variant().pose().seated();
+        // Never the vanilla "sitting" pose, even on a bicycle. That pose is a minecart passenger's:
+        // legs straight out in front, level with the hips. A cyclist's legs go down to the pedals, so
+        // the rider is drawn standing-straight and client/RiderPoseHandler poses the limbs from there.
+        // This only chooses how the rider is drawn; where they are placed is getMountedYOffset.
+        return false;
     }
 
     /**
@@ -1278,7 +1316,7 @@ public class EntityBike extends Entity {
      *
      * <p>It lives here, on the entity, rather than in either client class because <b>two</b> things
      * read it — the rider's legs in {@code RiderPoseHandler} and the crank and pedals in
-     * {@code ModelBike} — and they are only in phase with each other for as long as they agree on it.</p>
+     * {@code BikeModel} — and they are only in phase with each other for as long as they agree on it.</p>
      */
     public static final float CRANK_GEAR_RATIO = 2.2F;
 

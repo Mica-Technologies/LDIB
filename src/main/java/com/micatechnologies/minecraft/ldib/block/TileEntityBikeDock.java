@@ -108,9 +108,15 @@ public class TileEntityBikeDock extends TileEntity {
         handleUpdateTag(pkt.getNbtCompound());
     }
 
+    /** Built on first use and kept: the renderer asks for it every frame, and a dock never moves. */
+    private AxisAlignedBB renderBox;
+
     /** Expand the render box so the docked bike (drawn above the post) is not culled. */
     @Override
     public AxisAlignedBB getRenderBoundingBox() {
-        return new AxisAlignedBB(this.pos).grow(1.0D);
+        if (this.renderBox == null) {
+            this.renderBox = new AxisAlignedBB(this.pos).grow(1.0D);
+        }
+        return this.renderBox;
     }
 }

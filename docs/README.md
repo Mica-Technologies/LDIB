@@ -4,6 +4,7 @@
 | --- | --- |
 | [`design/HANDLING.md`](design/HANDLING.md) | The bike handling model: state, forces, integrator, tuning |
 | [`design/RIDE_MODEL.md`](design/RIDE_MODEL.md) | How riding works: control ownership, netcode, the "moved too quickly" trap |
+| [`design/RENDERING.md`](design/RENDERING.md) | How the rideables are drawn: meshes, round wheels, the skin atlas, the light pass, measuring |
 | [`AGENT-PLANS/`](AGENT-PLANS/) | **Gitignored.** Phased implementation plan and agent working notes |
 
 ## Conventions used across these docs

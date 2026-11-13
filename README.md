@@ -81,7 +81,8 @@ com.micatechnologies.minecraft.ldib
 ├── api/                           # BikeShareBilling, ShareTariff — the economy seam
 ├── integration/                   # SumEconomy — optional soft dep, reflection only, no compile dep
 └── client/                        # client-ONLY, reached via LdibClientProxy
-    ├── render/                    # RenderBike, ModelRideable + per-variant models, rack/dock TESRs
+    ├── render/                    # RenderBike, rack/dock TESRs, GlCanvas (the GL side of drawing)
+    │   └── mesh/                  # the models: pure-Java meshes, round wheels (docs/design/RENDERING.md)
     ├── hud/                       # ride readout (speed + battery), grab prompt
     ├── gui/                       # kiosk screen
     ├── sound/                     # ride sound for every bike in earshot, brake scuff

@@ -2,6 +2,8 @@ package com.micatechnologies.minecraft.ldib.client.render;
 
 import com.micatechnologies.minecraft.ldib.block.RackStyle;
 import com.micatechnologies.minecraft.ldib.block.TileEntityBikeRack;
+import com.micatechnologies.minecraft.ldib.client.render.mesh.RideableModel;
+import com.micatechnologies.minecraft.ldib.client.render.mesh.RideableModels;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.tileentity.TileEntitySpecialRenderer;
 import net.minecraft.util.EnumFacing;
@@ -56,8 +58,7 @@ public class TileEntityBikeRackRenderer extends TileEntitySpecialRenderer<TileEn
                 continue;
             }
             RackStyle.Slot slot = slots[i];
-            ModelRideable model = RideableModels.forVariant(bike.variant, false); // racked bikes are personal
-            model.setWheelSpin(0.0F);
+            RideableModel model = RideableModels.forVariant(bike.variant, false); // racked bikes are personal
 
             GlStateManager.pushMatrix();
             // Local: +X along the length, +Z across it. Ground lift scales with the bike.
@@ -68,7 +69,11 @@ public class TileEntityBikeRackRenderer extends TileEntitySpecialRenderer<TileEn
             GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
 
             bindTexture(bike.variant.texture());
-            model.render(null, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0625F);
+            GlCanvas.INSTANCE.translate(0.0F, 0.0F, model.parkingShift());
+            model.render(GlCanvas.INSTANCE, 0.0F, 0.0F, 0.0F, true);
+            if (bike.variant.hasLights()) {
+                model.renderLights(GlCanvas.INSTANCE, 0.0F, false, false, 0.0F); // locked up: lights off
+            }
 
             GlStateManager.popMatrix();
         }

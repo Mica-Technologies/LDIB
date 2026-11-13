@@ -54,7 +54,8 @@ physics/     Handling. Pure Java, ZERO Minecraft types.
 
 entity/      EntityBike — the rider-controlled vehicle. Common code; a server loads it.
 item/        ItemBike / LdibItems — places the bike, boat-style.
-client/      RenderBike + ModelBike — client-ONLY, reached via LdibClientProxy.
+client/      RenderBike + the mesh models — client-ONLY, reached via LdibClientProxy.
+  render/mesh/             the rideables' shapes. Pure Java like physics/ (one selector class aside).
 Ldib*.java   Forge plumbing: @Mod class, config, registry, creative tab, proxies.
 ```
 
@@ -64,7 +65,7 @@ Ldib*.java   Forge plumbing: @Mod class, config, registry, creative tab, proxies
    unit-testable on a bare JVM (`./gradlew test` runs in seconds with no game instance). Convert at
    the entity boundary — if you need a `Vec3d`, build it in `EntityBike`, not in `physics`.
 
-2. **Common code must never reach client-only classes.** `RenderBike` and `ModelBike` are reached
+2. **Common code must never reach client-only classes.** `RenderBike` and the models are reached
    only through `LdibClientProxy`. A stray `net.minecraft.client` import in common code compiles
    perfectly and only fails when a dedicated server boots — which is exactly what the CI server
    smoke test exists to catch. (SUM shipped three such bugs at once and took a server down.)
@@ -78,6 +79,18 @@ Ldib*.java   Forge plumbing: @Mod class, config, registry, creative tab, proxies
 
 4. **The integrator is symplectic on purpose.** `BikePhysics.step` updates speed first, then
    heading, then the caller derives position from the *new* speed. Keep it that way.
+
+5. **A model draws as a few rigid groups, never a box at a time.** Each group (frame, steering
+   assembly, wheel, crank) is one mesh and one draw call; `RideableMeshTest` holds every model to
+   eight. On this client the cost of a bike is its draw calls, not its polygons — going from ~60 calls
+   to 7 made a bicycle five times cheaper while tripling its detail. `client/render/mesh` stays free of
+   Minecraft client types so the models can be previewed and tested on a bare JVM. See
+   `docs/design/RENDERING.md`.
+
+6. **The light pass in `GlCanvas` uses raw GL inside `glPushAttrib`/`glPopAttrib`, on purpose.** Do
+   not convert it to `GlStateManager` calls. Changing state through `GlStateManager`'s cache on some
+   frames and not others is the suspected cause of blocks near a bike flashing with its tail light
+   (issue #1); the pass now leaves both the GL state and that cache exactly as it found them.
 
 ### Config
 

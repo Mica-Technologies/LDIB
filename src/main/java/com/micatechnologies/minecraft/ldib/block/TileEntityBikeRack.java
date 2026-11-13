@@ -189,9 +189,15 @@ public class TileEntityBikeRack extends TileEntity {
         handleUpdateTag(pkt.getNbtCompound());
     }
 
+    /** Built on first use and kept: the renderer asks for it every frame, and a rack never moves. */
+    private AxisAlignedBB renderBox;
+
     /** Expand the render box to cover the whole (possibly multi-block) rack plus overhanging bikes. */
     @Override
     public AxisAlignedBB getRenderBoundingBox() {
-        return new AxisAlignedBB(this.pos).grow(style().length() + 1.0D);
+        if (this.renderBox == null) {
+            this.renderBox = new AxisAlignedBB(this.pos).grow(style().length() + 1.0D);
+        }
+        return this.renderBox;
     }
 }

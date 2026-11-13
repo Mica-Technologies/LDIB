@@ -146,7 +146,9 @@ is looking.
 
 ## Client-side discipline
 
-`RenderBike` and `ModelBike` are the only bike classes that touch `net.minecraft.client`, and they are
-reached exclusively through `LdibClientProxy`. A dedicated server loads `EntityBike`, `ItemBike` and
+`RenderBike`, `GlCanvas` and the rack and dock renderers are the only bike classes that touch
+`net.minecraft.client`, and they are reached exclusively through `LdibClientProxy`. (The models
+themselves, under `client/render/mesh`, name no Minecraft client type at all — see
+[RENDERING.md](RENDERING.md).) A dedicated server loads `EntityBike`, `ItemBike` and
 the physics package with no client type anywhere on the path — the CI server smoke test boots a real
 server to prove exactly that, because this class of bug compiles cleanly and only dies at server boot.

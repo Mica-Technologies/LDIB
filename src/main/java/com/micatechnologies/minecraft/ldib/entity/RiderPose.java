@@ -28,7 +28,7 @@ public enum RiderPose {
      *
      * <p>The mount height is derived from {@link #STANDING} rather than guessed: the scooter's deck
      * sits at model {@code y = 4} and the one-wheel's foot pads at {@code y = 1.5} (see {@code
-     * ModelOnewheel}), so the pads are 2.5 px — {@code 2.5/16} of a block — higher, and the offset the
+     * OnewheelModel}), so the pads are 2.5 px — {@code 2.5/16} of a block — higher, and the offset the
      * owner already verified on the scooter is raised by exactly that.</p>
      */
     BOARD(0.2D + 2.5D / 16.0D, false, 90.0F);

@@ -20,6 +20,13 @@ one-wheel:
   FATTYRE   (88, 0)        18 x 8         the one-wheel's fat slick
   SHELL     (0, 28)        24 x 8         one-wheel deck shells + bumpers
   RAIL      (32, 28)       22 x 12        one-wheel side rails
+  ALLOY     (112, 0)       8 x 6          rims, spokes, cranks, bars
+  GLOW_WHITE (64, 12)      16 x 16        headlight halo, fading to black
+  GLOW_RED  (84, 12)       16 x 16        tail light halo, fading to black
+  SWATCHES  (104, 12)      12 x 4         six flat 2x4 colours: lenses off/on,
+                                          reflector amber, dark hardware
+
+The layout is mirrored in client/render/mesh/Skin.java; the two must agree.
 
 The last three were added rather than growing TYRE/FRAME in place: the original
 four are boxed in by their neighbours, and shade() derives its gradient from the
@@ -46,7 +53,22 @@ REGIONS = {
     "fattyre": (88, 0, 18, 8),
     "shell":   (0, 28, 24, 8),
     "rail":    (32, 28, 22, 12),
+    "alloy":   (112, 0, 8, 6),
+    "glow_white": (64, 12, 16, 16),
+    "glow_red":   (84, 12, 16, 16),
+    "swatches":   (104, 12, 12, 4),
 }
+
+# Regions that are the same on every skin, painted by their own function instead of from the palette.
+GLOW_COLOURS = {"glow_white": (255, 250, 235), "glow_red": (255, 40, 30)}
+SWATCH_COLOURS = [
+    (150, 152, 150),   # headlight lens, off: dull glass
+    (255, 255, 242),   # headlight lens, lit
+    (92, 14, 16),      # tail light lens, off: dark red plastic
+    (255, 36, 28),     # tail light lens, lit
+    (255, 150, 20),    # amber wheel reflector
+    (60, 61, 68),      # dark moulded hardware: housings, pedals, chain
+]
 
 # Per-variant palette: material -> base RGB (original art, brand-inspired only).
 NEAR_BLACK = (26, 26, 29)
@@ -65,6 +87,7 @@ PALETTES = {
         "frame":  (152, 30, 36),
         "accent": (70, 72, 79),
         "metal":  (84, 86, 92),
+        "alloy":  (150, 153, 160),   # a shade darker than the bicycle's: a heavier, moodier bike
     },
     # kick scooter: white stem, lime grip-tape deck, black tyres, grey fender.
     "scooter": {
@@ -102,6 +125,7 @@ SHARE_LIVERY = {
     "frame":  (100, 116, 138),   # desaturated slate-blue
     "accent": (150, 152, 158),   # muted grey
     "metal":  (110, 112, 118),
+    "alloy":  (170, 174, 182),
 }
 # Note the one-wheel is absent: it is a standalone device that never joins the fleet
 # (BikeVariant#usesStations), so there is no share livery to paint for it, and BikeVariant
@@ -117,6 +141,7 @@ _MATERIAL_FALLBACKS = {"fattyre": "tyre", "shell": "frame", "rail": "metal"}
 for _palette in PALETTES.values():
     for _material, _inherit_from in _MATERIAL_FALLBACKS.items():
         _palette.setdefault(_material, _palette[_inherit_from])
+    _palette.setdefault("alloy", (190, 194, 202))   # bright polished rim/spoke metal
 
 
 def _mul(base, f):
@@ -182,6 +207,12 @@ def shade(base, x, w, y, h, mat="frame"):
         f *= 1.06 if (x + y) % 2 == 0 else 0.95  # fine grain/grip stipple
         if x % 6 == 3:
             f *= 0.88                            # stitching / grip channel line
+    elif mat == "alloy":
+        # Polished metal, sampled a texel at a time by the models: bright rows at the top for rim
+        # walls and cranks, darker rows below for spokes and the shadowed well of a rim.
+        f *= 1.04 if x % 2 == 0 else 0.97
+        if y >= 4:
+            f *= 0.80
     elif mat == "metal":
         f *= 1.08 if x % 2 == 0 else 0.94        # vertical brushed streaks
         rivets = {(1, 1), (w - 2, 1), (1, h - 2), (w - 2, h - 2)}
@@ -193,11 +224,23 @@ def shade(base, x, w, y, h, mat="frame"):
     return _mul(base, f)
 
 
+def fixed(mat, x, y, w, h):
+    """Colour of a texel in a region that every skin paints identically."""
+    if mat in GLOW_COLOURS:
+        # A round halo: full colour in the middle, falling to black at the rim. It is drawn
+        # additively, so black adds nothing and the square it is painted on never shows.
+        cx, cy = (w - 1) / 2.0, (h - 1) / 2.0
+        d = ((x - cx) ** 2 + (y - cy) ** 2) ** 0.5 / (w / 2.0)
+        return _mul(GLOW_COLOURS[mat], max(0.0, 1.0 - d) ** 2)
+    colour = SWATCH_COLOURS[x // 2]
+    return _mul(colour, 1.12 - 0.10 * y)         # a little lighter at the top of each swatch
+
+
 def build(palette):
     img = Image.new("RGBA", (ATLAS_W, ATLAS_H), (0, 0, 0, 0))
     px = img.load()
     for mat, (u, v, w, h) in REGIONS.items():
-        base = palette[mat]
+        base = palette.get(mat)
         # Paint the footprint plus a 1px clamp-extended pad (gaps are >=4px, so
         # the pad never touches a neighbour) for belt-and-braces against sampling
         # at the exact edge.
@@ -208,7 +251,10 @@ def build(palette):
                     continue
                 cx = min(w - 1, max(0, ox))
                 cy = min(h - 1, max(0, oy))
-                r, g, b = shade(base, cx, w, cy, h, mat)
+                if base is None:
+                    r, g, b = fixed(mat, cx, cy, w, h)
+                else:
+                    r, g, b = shade(base, cx, w, cy, h, mat)
                 px[gx, gy] = (r, g, b, 255)
     return img
 

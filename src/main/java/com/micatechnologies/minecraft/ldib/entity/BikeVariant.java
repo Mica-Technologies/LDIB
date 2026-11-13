@@ -35,11 +35,18 @@ public enum BikeVariant {
     private final int id;
     private final String key;
     private final RiderPose pose;
+    /** Built once: the renderers ask for these every frame for every bike on screen. */
+    private final ResourceLocation texture;
+    private final ResourceLocation shareTexture;
 
     BikeVariant(int id, String key, RiderPose pose) {
         this.id = id;
         this.key = key;
         this.pose = pose;
+        this.texture = new ResourceLocation(LdibConstants.MOD_NAMESPACE, "textures/entity/" + key + ".png");
+        // The one-wheel never joins the fleet, so it has no fleet skin; see shareTexture().
+        this.shareTexture = "onewheel".equals(key) ? this.texture
+            : new ResourceLocation(LdibConstants.MOD_NAMESPACE, "textures/entity/share_" + key + ".png");
     }
 
     /** How the rider sits on this variant — seated on a bike, standing on a scooter. */
@@ -86,7 +93,7 @@ public enum BikeVariant {
 
     /** The entity texture for this variant, {@code ldib:textures/entity/<key>.png}. */
     public ResourceLocation texture() {
-        return new ResourceLocation(LdibConstants.MOD_NAMESPACE, "textures/entity/" + key + ".png");
+        return texture;
     }
 
     /**
@@ -98,10 +105,7 @@ public enum BikeVariant {
      * right board rather than the missing-texture checkerboard.</p>
      */
     public ResourceLocation shareTexture() {
-        if (!usesStations()) {
-            return texture();
-        }
-        return new ResourceLocation(LdibConstants.MOD_NAMESPACE, "textures/entity/share_" + key + ".png");
+        return shareTexture;
     }
 
     /**

@@ -1,21 +1,25 @@
 package com.micatechnologies.minecraft.ldib.client.render;
 
+import com.micatechnologies.minecraft.ldib.client.render.mesh.RideableModel;
+import com.micatechnologies.minecraft.ldib.client.render.mesh.RideableModels;
 import com.micatechnologies.minecraft.ldib.entity.EntityBike;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.entity.Render;
 import net.minecraft.client.renderer.entity.RenderManager;
 import net.minecraft.util.ResourceLocation;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.world.EnumSkyBlock;
 
 /**
- * Draws an {@link EntityBike}. Client-only — this class and {@link ModelBike} are the only bike code
- * that touches {@code net.minecraft.client}, reached exclusively through {@code LdibClientProxy}.
+ * Draws an {@link EntityBike}. Client-only — this package is the only bike code that touches {@code
+ * net.minecraft.client}, reached exclusively through {@code LdibClientProxy}.
  *
- * <p>The transform mirrors the vanilla minecart/boat renderers: translate to the interpolated
- * entity position, yaw to face travel, flip into model space, then draw. Exact vertical placement of
- * the wheels on the ground is a known play-test tuning task (see the master plan) — the geometry is
- * correct; the offset just wants an in-game eye.</p>
+ * <p>The transform mirrors the vanilla minecart/boat renderers: translate to the interpolated entity
+ * position, yaw to face travel, flip into model space, then draw. What is drawn, and how cheaply, is
+ * {@link RideableModel}'s business; this class only poses it from the entity.</p>
+ *
+ * <p><b>Nothing here asks the world a question per frame.</b> Whether the headlight should be on is
+ * answered by the entity, which re-checks a couple of times a second (see {@link
+ * EntityBike#isDarkAround}); the skin is a constant held by the variant. With a station's worth of
+ * bikes in view, per-frame lookups were a measurable part of drawing them.</p>
  */
 public class RenderBike extends Render<EntityBike> {
 
@@ -38,38 +42,23 @@ public class RenderBike extends Render<EntityBike> {
 
         GlStateManager.scale(-1.0F, -1.0F, 1.0F);
 
-        // Spin the wheels by the interpolated angle accumulated on the entity (see
-        // EntityBike#wheelRotation) so it reads as continuous rolling rather than snapping when speed
-        // changes.
-        ModelRideable model = RideableModels.forVariant(entity.variant(), entity.isShare());
-        model.setWheelSpin(entity.wheelRotation(partialTicks));
-
-        // Turn the front assembly (fork/wheel/stem/bars/headlight) into the turn by the interpolated
-        // cosmetic steer angle, so a turn looks ridden. Purely visual — the models rotate those parts
-        // about the head-tube axis; the physics heading is already baked into entityYaw above.
-        model.setSteerAngle(entity.steerAngle(partialTicks));
+        // The pose, all interpolated on the entity so it reads as continuous motion: how far the
+        // wheels and pedals have turned, and how far the front assembly is turned into the corner.
+        // Purely visual — the physics heading is already in entityYaw above.
+        RideableModel model = RideableModels.forVariant(entity.variant(), entity.isShare());
+        float steer = entity.steerAngle(partialTicks);
 
         bindEntityTexture(entity);
-        model.render(entity, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0625F);
+        model.render(GlCanvas.INSTANCE, entity.wheelRotation(partialTicks), entity.crankRotation(partialTicks),
+            steer, !entity.isBeingRidden());
 
-        // Emissive lights (e-bike / scooter). Headlight: on when it's dark at the bike. Rear light: a
-        // running tail light that always flashes (like a real bike-share bike) and goes solid while
-        // braking — so it's visible day or night, not only when braking in the dark.
+        // Lights (e-bike / scooter / one-wheel). Headlight: on when it is dark at the bike. Rear light:
+        // a running tail light that always flashes (like a real bike-share bike) and goes solid while
+        // braking or stopped — so it is visible day or night, not only when braking in the dark.
         if (entity.variant().hasLights()) {
-            BlockPos pos = new BlockPos(entity.posX, entity.posY + 0.5D, entity.posZ);
-            // Headlight comes on when it's dark at the bike. Stored sky light stays 15 under open sky
-            // regardless of time (day/night dimming is a render-only effect), so darkness is judged from
-            // the synced time of day, plus block light for caves/shade. On when: it's night, or the spot
-            // has little sky access — and no bright block light nearby.
-            long timeOfDay = ((entity.world.getWorldTime() % 24000L) + 24000L) % 24000L;
-            boolean night = timeOfDay >= 13000L && timeOfDay <= 23000L;
-            int blockLight = entity.world.getLightFor(EnumSkyBlock.BLOCK, pos);
-            int skyLight = entity.world.getLightFor(EnumSkyBlock.SKY, pos);
-            boolean dark = blockLight < 8 && (night || skyLight < 8);
-            // Rear light: solid when braking (S) or stopped, otherwise a fast flash (period 10 ticks).
             boolean solid = entity.isBraking() || Math.abs(entity.speed()) < 0.1D;
             boolean rearOn = solid || (entity.ticksExisted % 10 < 5);
-            model.renderLights(0.0625F, dark, rearOn, 1.0F);
+            model.renderLights(GlCanvas.INSTANCE, steer, entity.isDarkAround(), rearOn, 1.0F);
         }
 
         GlStateManager.popMatrix();

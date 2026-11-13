@@ -1,6 +1,8 @@
 package com.micatechnologies.minecraft.ldib.client.render;
 
 import com.micatechnologies.minecraft.ldib.block.TileEntityBikeDock;
+import com.micatechnologies.minecraft.ldib.client.render.mesh.RideableModel;
+import com.micatechnologies.minecraft.ldib.client.render.mesh.RideableModels;
 import com.micatechnologies.minecraft.ldib.entity.BikeVariant;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.tileentity.TileEntitySpecialRenderer;
@@ -42,8 +44,7 @@ public class TileEntityBikeDockRenderer extends TileEntitySpecialRenderer<TileEn
         if (variant == null) {
             return;
         }
-        ModelRideable model = RideableModels.forVariant(variant, true); // docked bikes are share bikes
-        model.setWheelSpin(0.0F);
+        RideableModel model = RideableModels.forVariant(variant, true); // docked bikes are share bikes
 
         GlStateManager.pushMatrix();
         GlStateManager.translate(x + 0.5D, y + 0.375D * BIKE_SCALE, z + 0.5D);
@@ -54,12 +55,15 @@ public class TileEntityBikeDockRenderer extends TileEntitySpecialRenderer<TileEn
         GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
 
         bindTexture(variant.shareTexture()); // docked bikes are always public-fleet bikes
-        model.render(null, 0.0F, 0.0F, 0.0F, 0.0F, 0.0F, 0.0625F);
+        // Wheels still, bars straight — and not "parked": the dock is holding it up, so the
+        // kickstand stays folded.
+        GlCanvas.INSTANCE.translate(0.0F, 0.0F, model.parkingShift());
+        model.render(GlCanvas.INSTANCE, 0.0F, 0.0F, 0.0F, false);
 
         // A bike idling in a share dock: headlight off, rear light dimly flashing (a calm slow blink).
         if (variant.hasLights() && dock.getWorld() != null) {
             boolean rearOn = (dock.getWorld().getTotalWorldTime() % 20L) < 10L;
-            model.renderLights(0.0625F, false, rearOn, 0.4F);
+            model.renderLights(GlCanvas.INSTANCE, 0.0F, false, rearOn, 0.4F);
         }
 
         // Not part of the matrix stack, so popMatrix does not undo it; the next TESR would inherit it.
